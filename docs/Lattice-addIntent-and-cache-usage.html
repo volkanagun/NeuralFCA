@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lattice.addIntent and Cache Usage</title>
+  <style>
+    @page { size: A4; margin: 18mm 17mm 19mm; }
+    * { box-sizing: border-box; }
+    body { font: 10.5pt/1.48 "Segoe UI", Arial, sans-serif; color: #172033; margin: 0; }
+    h1 { color: #123b67; font-size: 23pt; line-height: 1.15; margin: 0 0 5mm; }
+    h2 { color: #18558a; font-size: 15pt; margin: 8mm 0 2.5mm; break-after: avoid; }
+    h3 { color: #244f75; font-size: 11.5pt; margin: 5mm 0 1.5mm; break-after: avoid; }
+    p { margin: 0 0 3mm; }
+    ul, ol { margin: 1.5mm 0 3mm 6mm; padding-left: 5mm; }
+    li { margin-bottom: 1.2mm; }
+    code { font-family: Consolas, monospace; color: #183b5b; }
+    pre { background: #eef4f8; border-left: 3px solid #2683b9; padding: 3mm 4mm; white-space: pre-wrap; break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; margin: 3mm 0 5mm; font-size: 9.2pt; }
+    th { background: #18558a; color: white; text-align: left; }
+    th, td { border: 1px solid #b8c7d3; padding: 2.2mm; vertical-align: top; }
+    tr { break-inside: avoid; }
+    tr:nth-child(even) td { background: #f5f8fa; }
+    .lead { font-size: 12pt; color: #34495e; }
+    .callout { background: #edf7f4; border: 1px solid #9bcbbc; padding: 3.5mm; margin: 4mm 0; break-inside: avoid; }
+    .note { color: #536579; font-size: 9.5pt; }
+    .flow { text-align: center; font-family: Consolas, monospace; font-weight: 600; color: #184d73; }
+    .footer-note { margin-top: 8mm; border-top: 1px solid #ccd5dc; padding-top: 3mm; font-size: 8.5pt; color: #667788; }
+  </style>
+</head>
+<body>
+  <h1><code>Lattice.addIntent</code> and Cache Usage</h1>
+  <p class="lead">A verbal algorithm guide to the incremental CVA–FCA insertion implemented in <code>src/cvafca/Lattice.scala</code>.</p>
+
+  <div class="callout"><strong>In one sentence:</strong> <code>addIntent</code> treats an incoming instance as a singleton learned intent, searches upward from nearby leaf concepts for the most specific compatible generator, locally creates or reuses concepts, rewires symbolic containment edges, and finally adds the instance to accepting ancestors and refits their CVA models.</div>
+
+  <h2>1. Mental model</h2>
+  <p>Each lattice node contains a symbolic extent (instance symbols), a vector extent, a learned CVA model (common vector, projection, and classification radius), and links to parents and children.</p>
+  <pre class="flow">parent → child
+larger symbolic extent → smaller symbolic extent
+more general → more specific</pre>
+  <p>Learned CVA classification is used to search for compatible concepts. Strict symbolic set inclusion is used for graph edges. Keeping these responsibilities separate prevents a non-transitive learned classifier from creating cycles in the lattice topology.</p>
+
+  <h2>2. Algorithm, step by step</h2>
+  <h3>Step 1 — Handle an empty lattice</h3>
+  <p>If no nodes exist, the method creates a singleton node containing the incoming instance and returns it.</p>
+
+  <h3>Step 2 — Create a temporary singleton target</h3>
+  <p>The incoming instance <code>x</code> is fitted as <code>target = concept({x})</code>. This temporary node represents the concept being inserted. It is placed in the lattice only if an equivalent existing node cannot be reused.</p>
+
+  <h3>Step 3 — Choose a bounded bottom neighborhood</h3>
+  <p>The method samples up to 32 leaf nodes (nodes without children), sorts them by CVA distance to the incoming vector, and retains at most the closest 8 as search starts. The implementation deliberately caps work:</p>
+  <pre>maxRecursionDepth       = 1
+maxSearchVisits         = 24
+maxBottomSamples        = 32
+maxBottomStarts         = 8
+maxChildrenPerGenerator = 4</pre>
+  <p>This keeps insertion cost local and predictable, but means the globally best generator can be missed in a large lattice.</p>
+
+  <h3>Step 4 — Search upward for a generator</h3>
+  <p><code>maximalConcept</code> performs a bottom-up, best-first search, prioritizing nodes closest to the incoming vector. A node is compatible when:</p>
+  <ol>
+    <li>Its learned model classifies enough of the target extent. For a singleton target, this essentially asks whether it classifies the incoming instance.</li>
+    <li>It is coherent with the incoming item: the item is close to the concept, and the singleton target also sees every member of that concept as sufficiently close.</li>
+  </ol>
+  <p>Once the first compatible node on a path is reached, its less-specific ancestors are not explored. Among compatible candidates, the node with the smallest extent is selected; ID breaks ties deterministically.</p>
+
+  <h3>Step 5 — Record accepting ancestors</h3>
+  <p>If a generator is found, <code>ancestorClosure</code> collects it and its ancestors, up to the visit limit. Their IDs form <code>acceptedIds</code>. These nodes will receive the instance at the end.</p>
+  <p>During structural work, <code>effectiveSymbols</code> pretends accepted nodes already contain the new symbol. This permits future symbolic ordering to be calculated without changing any learned model mid-search.</p>
+
+  <h3>Step 6 — If no generator exists</h3>
+  <p>There is no artificial universal node. If nothing classifies the singleton, the method examines coherent root nodes, chooses the closest, creates a learned concept over <code>root.instances ∪ {x}</code>, and links it above the old root when the symbolic order permits. It then searches again.</p>
+
+  <h3>Step 7 — Insert recursively in the local neighborhood</h3>
+  <p><code>addIntentRecursively</code> has three main outcomes:</p>
+  <ul>
+    <li><strong>No generator:</strong> materialize the target as a new node and add it to the bottom frontier.</li>
+    <li><strong>Equivalent generator:</strong> reuse that node instead of creating a duplicate.</li>
+    <li><strong>Distinct generator:</strong> inspect up to four closest children. Reuse compatible children or construct candidates fitted over <code>child.instances ∪ target.instances</code>. Recursion is limited to depth 1.</li>
+  </ul>
+  <p>“Intersection” here refers to learned intent semantics; operationally, its CVA model is fitted to the union of object extents.</p>
+
+  <h3>Step 8 — Remove redundant prospective parents</h3>
+  <p>Candidate parents are compared with directional learned-containment tests. If one candidate makes another redundant, only the more appropriate local cover candidate is retained.</p>
+
+  <h3>Step 9 — Materialize or reuse the target</h3>
+  <p><code>materialize</code> searches locally for an existing mutually equivalent concept. It reuses that concept when found; otherwise it inserts the fitted target into <code>nodeMap</code>.</p>
+
+  <h3>Step 10 — Rewire local edges</h3>
+  <p>Edges between the generator, new concept, and nearby concepts are created according to strict symbolic inclusion. When the new concept belongs between two nodes, the old direct edge is removed:</p>
+  <pre class="flow">before: generator → old child
+after:  generator → new concept → old child</pre>
+  <p><code>link</code> also maintains the bottom frontier: parents with children are removed from it, while childless nodes are included.</p>
+
+  <h3>Step 11 — Mutate and refit only after structure is stable</h3>
+  <p>After local insertion finishes, the instance is added to every node in <code>acceptedIds</code>, and each changed CVA model is refitted. Delaying refits ensures every search and edge decision in one insertion observes a stable snapshot of the old models.</p>
+
+  <h2>3. Cache usage</h2>
+  <p>Every cache is created inside <code>addIntent</code>. It exists for one insertion only and is discarded afterward.</p>
+  <table>
+    <thead><tr><th>Cache</th><th>Key</th><th>Stored value</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>targetCache</code></td><td>Symbol set</td><td>Target/canonical node</td><td>Avoids fitting the same symbolic extent repeatedly. After equivalent-node reuse, the entry points to the reused canonical node.</td></tr>
+      <tr><td><code>incomingDistanceCache</code></td><td>Node ID</td><td>Distance to incoming vector</td><td>Avoids repeated tensor projection and distance computation during sampling, ordering, searching, and coherence checks. NaN becomes positive infinity.</td></tr>
+      <tr><td><code>coherenceCache</code></td><td>Node ID</td><td>Boolean</td><td>Avoids repeating concept-to-item and singleton-to-members proximity checks, including scans over a concept’s extent.</td></tr>
+      <tr><td><code>subsetCache</code></td><td>Ordered pair of node IDs</td><td>Boolean</td><td>Caches directional learned coverage: whether the left model classifies enough instances of the right node.</td></tr>
+      <tr><td><code>activeCalls</code></td><td>Target symbols + generator ID</td><td>Presence marker</td><td>A recursion guard. Re-entering an active target/generator pair stops recursion and materializes the target.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Important cache details</h3>
+  <ul>
+    <li><code>intentSubset(left, right)</code> is learned semantic coverage, not ordinary Scala set inclusion, and it is directional.</li>
+    <li><code>targetCache</code> assumes a symbol uniquely identifies an instance/vector because the key contains symbols only.</li>
+    <li>Distance, coherence, and subset entries remain valid because existing node models are not refitted until structural insertion is complete.</li>
+    <li>The caches are not valid across insertions, which is why none is stored as a long-lived field of <code>Lattice</code>.</li>
+  </ul>
+
+  <h2>4. Behavior and trade-offs</h2>
+  <ul>
+    <li>Search is distance-guided and locally bounded.</li>
+    <li>Equivalent concepts found in the searched neighborhood are reused.</li>
+    <li>Expensive learned comparisons are evaluated once per relevant key.</li>
+    <li>Topology remains cycle-safe through strict symbolic inclusion.</li>
+    <li>The globally best generator or an equivalent concept outside the bounded neighborhood may be missed.</li>
+    <li>Only local cover edges are updated; the complete Hasse diagram is not rebuilt.</li>
+    <li>Because learned classification may lack exact closure, antisymmetry, and transitivity, this is an approximate learned FCA lattice rather than a mathematically exact formal concept lattice.</li>
+  </ul>
+
+  <div class="callout"><strong>Core reason for the cache design:</strong> one insertion repeatedly asks the same expensive questions while traversing overlapping local paths. Memoization makes those questions cheap, and delayed refitting guarantees their answers stay consistent until the insertion finishes.</div>
+
+  <p class="footer-note">Prepared from the implementation in <code>Lattice.scala</code>, with supporting node/model behavior from <code>Node.scala</code> and <code>CVA.scala</code>.</p>
+</body>
+</html>

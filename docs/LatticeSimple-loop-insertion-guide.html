@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NeuralFCA — CVA Lattice Insertion and LatticeSimple</title>
+<style>
+@page { size:A4; margin:16mm; }
+body { color:#182536; font:10.5pt/1.48 "Segoe UI",Arial,sans-serif; }
+h1 { color:#103f69; font-size:23pt; margin:0 0 3mm; }
+h2 { color:#155b8e; font-size:15pt; border-bottom:1px solid #adc2d2; margin:8mm 0 3mm; }
+h3 { color:#28597d; font-size:11.5pt; margin:5mm 0 2mm; }
+p { margin:0 0 2.8mm; } li { margin-bottom:1.2mm; }
+code,pre { font-family:Consolas,monospace; }
+pre { background:#eef5f8; border-left:3px solid #2785b9; padding:3mm; white-space:pre-wrap; }
+.box { background:#eef8f5; border:1px solid #91c7b6; padding:3mm; margin:3mm 0; }
+.warn { background:#fff7e7; border-color:#d2ae63; }
+table { border-collapse:collapse; width:100%; margin:3mm 0; font-size:9.2pt; }
+th { background:#185d8d; color:white; } th,td { border:1px solid #b6c6d1; padding:2mm; text-align:left; vertical-align:top; }
+.flow { text-align:center; font:10pt Consolas,monospace; background:#f5f8fa; padding:4mm; border:1px solid #bbcbd6; }
+.meta { color:#5e7180; }
+</style>
+</head>
+<body>
+<h1>CVA lattice insertion, explained</h1>
+<p class="meta">Accompanies <code>Lattice.scala</code> and the loop-based <code>LatticeSimple.scala</code>.</p>
+
+<div class="box"><b>Accurate short description.</b> An incoming instance becomes a temporary singleton CVA target. A bounded search starts at specific bottom nodes and moves upward through more-general parents. It chooses a locally compatible generator. Existing locally found nodes that are mutually CVA-equivalent to a target are reused; otherwise the target is materialized. Intermediate child-union concepts may be built. Edges are ordered by strict symbolic extent inclusion. Finally, the incoming instance is added to the generator and its bounded ancestors, whose CVA models are refitted.</div>
+
+<h2>1. What a node represents</h2>
+<p>Every node contains a symbolic extent (symbols), a vector extent, and a CVA model consisting of a common vector, projection, and radius. A node classifies a vector when its projected residual distance is at most its learned radius.</p>
+<pre>node.classifies(x)  ⇔  CVA distance(node.model, x) ≤ node.model.radius</pre>
+<p>A parent is <em>more general</em> and has a strict superset of its child's symbols. A child is more specific. Therefore bottom nodes—nodes without children—are the most-specific current concepts.</p>
+
+<h2>2. Main insertion flow</h2>
+<div class="flow">singleton target<br>↓<br>sample closest bottom nodes<br>↓ search through parents<br>compatible generator<br>↓<br>loop over bounded child-union work<br>↓<br>reuse equivalent node or materialize target<br>↓<br>repair local symbolic cover edges<br>↓<br>add instance to generator + ancestors and refit</div>
+
+<h3>Generator search</h3>
+<p><code>maximalConcept</code> starts from at most eight close bottom nodes. A priority queue visits closer nodes first. If a node is incompatible, its parents are queued. If compatible, that path stops because its parents are less specific. The smallest compatible extent is selected. At most 24 distinct nodes are visited, so the algorithm is deliberately local rather than exhaustive.</p>
+<p>Compatibility combines two learned conditions:</p>
+<ol>
+<li><code>intentSubset(concept, target)</code>: the concept classifier accepts the required fraction of the target extent. For a singleton and coverage 1.0, it accepts the incoming instance.</li>
+<li><code>coherentWithIncoming</code>: the concept is close to the incoming vector, and the singleton model is close to every existing member of the concept.</li>
+</ol>
+
+<h3>Equivalence</h3>
+<p>Equivalence is mutual learned coverage, not equality of symbol sets:</p>
+<pre>A ≈ B ⇔ coverage(A, B.extent) ≥ threshold
+      ∧ coverage(B, A.extent) ≥ threshold</pre>
+<p>Optional configuration also requires each node to classify the other's common vector. The check is local: it checks the generator and the result of another bounded search during materialization, not every lattice node.</p>
+
+<h3>Topology and final update</h3>
+<p>Learned classification is not guaranteed to be transitive, so it is not trusted for graph direction. Edges use strict symbolic inclusion: <code>parent.symbols ⊃ child.symbols</code>. During planning, accepted ancestors are viewed as if they already contained the new symbol. Only after structural work finishes is the incoming item inserted into the generator and its bounded ancestor closure; each changed node is then refitted.</p>
+
+<h2>3. What the original recursion does</h2>
+<p>The recursion is not the upward lattice search; <code>maximalConcept</code> performs that search with a loop. Recursive insertion explores child-union candidates:</p>
+<ol>
+<li>Select a generator for the current target.</li>
+<li>If the generator is equivalent, return it.</li>
+<li>Otherwise inspect up to four nearest generator children.</li>
+<li>Reuse a child that contains the target; discard an incoherent child.</li>
+<li>For a coherent non-containing child, create a target fitted from <code>child.extent ∪ missing target instances</code>.</li>
+<li>Insert that union target one level deeper and use its returned canonical node as a prospective parent.</li>
+<li>After all child results return, materialize the current target and repair local edges.</li>
+</ol>
+<p>The <code>activeCalls</code> set guards the pair <code>(target symbols, generator ID)</code>, preventing a repeated work path from cycling.</p>
+
+<h2>4. How LatticeSimple replaces recursion</h2>
+<p><code>LatticeSimple</code> extends <code>Lattice</code> and overrides only <code>addIntentRecursively</code>. It stores unfinished calls as <code>Frame</code> objects in an <code>ArrayDeque</code>. A frame records:</p>
+<ul>
+<li>current target, preferred generator, and depth;</li>
+<li>selected generator and recursion-guard key;</li>
+<li>ordered children and the next-child index;</li>
+<li>whether it is waiting for a deeper result;</li>
+<li>the reduced prospective-parent list.</li>
+</ul>
+<pre>push initial frame
+while frames are non-empty:
+  frame = top
+  if a deeper frame returned:
+    accept its canonical node as a candidate
+  else if frame is new:
+    select generator; finish early or initialize child work
+  else if an unprocessed child exists:
+    accept, reject, or push a child-union frame
+  else:
+    materialize target, repair edges, pop frame, return result upward</pre>
+<p>This is the same post-order dependency as recursion: the parent frame pauses, the nested union finishes, and only then does the parent consume its result. The JVM call stack remains constant; the heap-based deque holds the state explicitly.</p>
+
+<h2>5. What happens at depth 2 or more?</h2>
+<table>
+<tr><th>Setting</th><th>Behavior</th><th>Trade-off</th></tr>
+<tr><td><code>maxDepth = 0</code></td><td>No generator children are inspected.</td><td>Simplest and cheapest; creates no child-union intermediates.</td></tr>
+<tr><td><code>maxDepth = 1</code></td><td>The initial frame inspects children and may push one union level. Depth-1 frames do not inspect their children.</td><td>Matches the original class's current bound.</td></tr>
+<tr><td><code>maxDepth = 2</code></td><td>A depth-1 union frame may inspect its own generator's children and create depth-2 unions.</td><td>Can discover a more refined local chain, with more fitting and searches.</td></tr>
+<tr><td><code>maxDepth = D</code></td><td>Child expansion occurs at depths <code>0..D-1</code>; frames at depth D finalize without child expansion.</td><td>Potential work grows roughly with branching; guards and other fixed search limits still apply.</td></tr>
+</table>
+<p>With up to four children per frame, the theoretical frame count through depth D resembles <code>1 + 4 + 4² + … + 4ᴰ</code>. Actual work is normally smaller because children may be accepted, rejected, deduplicated by target cache, or stopped by the active-call guard. Each frame can also run bounded generator searches and fit a new CVA target, so increasing depth can be materially more expensive.</p>
+<div class="box warn"><b>Important:</b> greater depth improves local exploration, not global completeness. Bottom sampling, eight search starts, 24 visits, and four children per frame remain bounded. A deeper search can also make insertion-order and learned-equivalence effects more visible; validate the lattice and benchmark representative data before choosing a large value.</div>
+
+<h2>6. Usage</h2>
+<pre>val lattice = new LatticeSimple(
+  cva = CVA(dimension),
+  config = LatticeConfig(),
+  maxDepth = 2,
+  maxChildrenPerFrame = 4
+)
+
+val objectConcept = lattice.addIntent(instance)
+lattice.validate()</pre>
+<p>Use depth 1 for behavior corresponding to the original implementation. Use depth 0 for the clearest minimal insertion. Try depth 2 only when the additional intermediate concepts improve results enough to justify the extra CVA fits and local searches.</p>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lattice.scala — Algorithmic Guide to Every Method</title>
+  <style>
+    @page { size: A4; margin: 16mm 16mm 18mm; @bottom-right { content: counter(page); color: #667788; font-size: 8pt; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #172234; font: 10pt/1.46 "Segoe UI", Arial, sans-serif; }
+    h1 { margin: 0 0 4mm; color: #103d68; font-size: 22pt; line-height: 1.13; }
+    h2 { margin: 8mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #aac0d2; color: #155789; font-size: 15pt; break-after: avoid; }
+    h3 { margin: 5.5mm 0 1.5mm; color: #214f73; font-size: 11.5pt; break-after: avoid; }
+    h4 { margin: 3.5mm 0 1mm; color: #345c78; font-size: 10.2pt; break-after: avoid; }
+    p { margin: 0 0 2.7mm; }
+    ul, ol { margin: 1.5mm 0 3mm 5mm; padding-left: 5mm; }
+    li { margin-bottom: 1mm; }
+    code { font-family: Consolas, monospace; color: #173e5e; }
+    pre { margin: 2mm 0 3mm; padding: 3mm; border-left: 3px solid #2682b6; background: #eff5f8; font: 9pt/1.4 Consolas, monospace; white-space: pre-wrap; break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; margin: 2.5mm 0 4mm; font-size: 8.8pt; }
+    th { background: #18598a; color: white; text-align: left; }
+    th, td { border: 1px solid #b7c6d0; padding: 2mm; vertical-align: top; }
+    tr { break-inside: avoid; }
+    tr:nth-child(even) td { background: #f5f8fa; }
+    .lead { color: #40566a; font-size: 11.5pt; }
+    .box { margin: 3mm 0; padding: 3mm; border: 1px solid #98c8ba; background: #eef8f5; break-inside: avoid; }
+    .warn { border-color: #d6b36a; background: #fff8e9; }
+    .meta { color: #617383; font-size: 9pt; }
+    .sig { margin-top: 1mm; color: #113c60; font: 9pt Consolas, monospace; }
+    .method { break-inside: auto; }
+    .label { color: #18598a; font-weight: 600; }
+    .toc { columns: 2; column-gap: 8mm; font-size: 9.2pt; }
+    .toc li { break-inside: avoid; }
+    .pagebreak { break-before: page; }
+  </style>
+</head>
+<body>
+  <h1><code>Lattice.scala</code>: Algorithmic Guide to Every Method</h1>
+  <p class="lead">A method-by-method explanation of purpose, control flow, state changes, caches, returned values, computational cost, and relevant edge cases.</p>
+  <div class="box"><strong>Core idea.</strong> This class incrementally maintains an approximate FCA-like lattice. CVA models supply learned classification, distance, intent, and equivalence; strict symbolic extent inclusion supplies the graph order. Parent nodes are more general and have strict supersets of their children’s symbol sets.</div>
+
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li>State and accessors</li><li>Cached learned predicates</li><li>Bounded generator search</li><li>Materialization</li><li>Recursive insertion</li><li>Symbolic edge helpers</li><li>Main <code>addIntent</code></li><li>Reporting and intersection</li><li>Semantic relations</li><li>Validation</li><li>Auxiliary maintenance</li><li>Construction utilities</li><li>Complexity and behavior summary</li>
+  </ol>
+
+  <h2>1. Class state and accessors</h2>
+  <p>The lattice stores nodes in insertion order in <code>nodeMap: LinkedHashMap[Long, Node]</code>. IDs come from an <code>AtomicLong</code>. Five fixed bounds limit insertion search width, visits, recursion, and child exploration. These bounds trade global completeness for predictable local cost.</p>
+
+  <div class="method"><h3><code>nodes</code></h3><div class="sig">def nodes: Vector[Node]</div>
+  <p><span class="label">Algorithm.</span> Traverse <code>nodeMap.values</code> in linked-map iteration order and copy them into an immutable <code>Vector</code>.</p>
+  <p><span class="label">Behavior.</span> This is a snapshot of node references, not a deep copy. Later lattice mutations do not add or remove entries from the returned vector, but mutations to a referenced <code>Node</code> remain visible. Time and extra space are both O(N).</p></div>
+
+  <div class="method"><h3><code>size</code></h3><div class="sig">def size</div>
+  <p>Returns the number of entries currently in <code>nodeMap</code>. It is an O(1) map-size lookup. Scala infers the result type as <code>Int</code>.</p></div>
+
+  <div class="method"><h3><code>node</code></h3><div class="sig">def node(id: Long): Node</div>
+  <p>Looks up an ID with <code>nodeMap(id)</code>. Average lookup is O(1). It returns the exact mutable node object. If the ID is absent, the map’s indexing operation throws <code>NoSuchElementException</code>; the method does not return an <code>Option</code>.</p></div>
+
+  <h2>2. Cached node construction and learned predicates</h2>
+  <p>The caches in these methods are supplied by <code>addIntent</code> and live for one insertion. They are safe because existing accepted nodes are not refitted until structural work ends.</p>
+
+  <div class="method"><h3><code>targetNode</code></h3><div class="sig">def targetNode(targetCache, instances): Node</div>
+  <ol><li>Extract every instance symbol and form a <code>Set[String]</code> key.</li><li>Look up that key in <code>targetCache</code>.</li><li>If absent, deduplicate instances by symbol, allocate a new ID, fit a CVA model through <code>createNode</code>, cache it, and return it.</li></ol>
+  <p>The target is not necessarily in <code>nodeMap</code>; it can remain a temporary candidate. Repeated construction of the same symbolic extent within one insertion therefore performs only one CVA fit.</p>
+  <p class="meta">Important assumption: a symbol uniquely identifies an instance/vector. Two vectors with the same symbol collapse to one cache key and later occurrence.</p></div>
+
+  <div class="method"><h3><code>incomingDistance</code></h3><div class="sig">def incomingDistance(cache, concept, instance): Double</div>
+  <ol><li>Use <code>concept.id</code> as the cache key.</li><li>On a miss, calculate the residual distance from the node’s CVA model to the incoming vector.</li><li>Convert <code>NaN</code> to positive infinity.</li><li>Cache and return the result.</li></ol>
+  <p>This value is reused in leaf selection, priority ordering, coherence, root choice, and child ordering. Treating NaN as infinity prevents invalid numerical output from appearing artificially close.</p></div>
+
+  <div class="method"><h3><code>coherentWithIncoming</code></h3><div class="sig">def coherentWithIncoming(coherenceCache, distanceCache, singletonTarget, concept, instance): Boolean</div>
+  <ol><li>Obtain the cached concept-to-incoming distance.</li><li>Look up coherence by concept ID.</li><li>On a miss, require the first distance to be no greater than <code>classificationThreshold</code>.</li><li>For every member of the concept, measure distance using the singleton target’s model and require it to be no greater than <code>trainingRadiusScale</code>.</li><li>Cache the conjunction.</li></ol>
+  <p>The test is deliberately bidirectional in spirit: the concept must be close to the new item, and the singleton model must regard the concept’s members as close. Short-circuiting means the member scan is skipped when the first test fails.</p>
+  <div class="box warn"><strong>Nuance:</strong> the second comparison uses the raw <code>trainingRadiusScale</code> as a distance threshold. Elsewhere that configuration value scales a training residual when a CVA radius is fitted.</div></div>
+
+  <div class="method"><h3><code>intentSubset</code></h3><div class="sig">def intentSubset(subsetCache, left, right): Boolean</div>
+  <p>Cache the directional predicate <code>coverage(left, right.instances) ≥ equalityCoverage</code> under <code>(left.id, right.id)</code>. In words: “Does the learned classifier of <code>left</code> accept a sufficient fraction of <code>right</code>’s extent?”</p>
+  <p>This is semantic containment, not ordinary set containment, and it need not be symmetric or transitive. Its ordered-pair key is therefore necessary. On a cache miss the work is O(|right extent|) classifications.</p></div>
+
+  <h2>3. Bounded generator search</h2>
+  <div class="method"><h3><code>maximalConcept</code></h3><div class="sig">def maximalConcept(bottomFrontier, coherenceCache, subsetCache, distanceCache, target, instance, preferred): Option[Node]</div>
+  <p><span class="label">Purpose.</span> Find a locally most-specific existing concept that both semantically contains the target and is coherent with the incoming instance.</p>
+  <ol>
+    <li>Create a priority queue ordered so smaller incoming distance is dequeued first; lower ID provides deterministic tie-breaking.</li>
+    <li>If <code>preferred</code> exists, enqueue only it. Otherwise enqueue up to eight nodes from <code>bottomFrontier</code>.</li>
+    <li>Maintain a visited-ID set and stop when the queue is empty or 24 distinct nodes have been visited.</li>
+    <li>For each new node, test <code>intentSubset(concept, target)</code> and coherence.</li>
+    <li>If compatible, add it to the compatible frontier and do not enqueue its parents. It is the first compatible node on that bottom-up path, so ancestors are less specific.</li>
+    <li>If incompatible, enqueue all existing parent nodes.</li>
+    <li>Return the compatible node with minimum <code>(size, id)</code>, or <code>None</code>.</li>
+  </ol>
+  <p>The method reads topology and caches but does not mutate the lattice. It is an approximate best-first search because its starts and visits are capped. With the hard limits, graph exploration is bounded; learned predicate cost still depends on inspected extents.</p></div>
+
+  <h2>4. Materializing a candidate</h2>
+  <div class="method"><h3><code>materialize</code></h3><div class="sig">def materialize(..., target, instance): Node</div>
+  <ol><li>Search for a compatible existing concept with <code>maximalConcept</code>.</li><li>Keep it only if <code>equivalent(existing, target)</code> succeeds.</li><li>If no equivalent node is found locally, insert <code>target</code> into <code>nodeMap</code>.</li><li>Update <code>targetCache(target.symbols)</code> to the actual selected node.</li><li>Return that canonical node.</li></ol>
+  <p>The cache rewrite is important: subsequent construction of the same symbolic target returns the reused lattice node rather than the temporary fitted object. Materialization does not itself create edges. Equivalence performs two extent scans, plus optional common-vector checks.</p></div>
+
+  <h2 class="pagebreak">5. Recursive local insertion</h2>
+  <div class="method"><h3><code>addIntentRecursively</code></h3><div class="sig">def addIntentRecursively(..., acceptedIds, target, instance, preferredGenerator, depth): Node</div>
+  <p><span class="label">Purpose.</span> Insert or reuse a target concept under a nearby generator, derive local intersection candidates from generator children, and repair affected cover edges.</p>
+
+  <h4>A. Find a generator</h4>
+  <p>Call <code>maximalConcept</code>, starting at <code>preferredGenerator</code> when supplied. If there is no generator, insert the target, add it to the bottom frontier, and return it. If the generator and target are mutually equivalent, return the generator without adding a node.</p>
+
+  <h4>B. Guard recursive re-entry</h4>
+  <p>Construct <code>callKey = (target.symbols, generator.id)</code>. If it is already in <code>activeCalls</code>, recursive processing has reached the same state; stop the cycle by materializing the target directly. Otherwise mark the key active.</p>
+
+  <h4>C. Examine nearby generator children</h4>
+  <p>At maximum recursion depth, examine none. Otherwise, resolve generator child IDs, sort by distance to the incoming instance and ID, and keep at most four. For each original child:</p>
+  <ol>
+    <li>If the child semantically contains the target, accept the child as a candidate.</li>
+    <li>Otherwise, reject it if it is incoherent with the incoming item.</li>
+    <li>Otherwise construct the deduplicated union of child and target extents.</li>
+    <li>If the union does not increase the child’s size, reuse the child.</li>
+    <li>If it does, obtain a cached target node for the union and recursively insert it, preferring the original child as generator and increasing depth.</li>
+  </ol>
+
+  <h4>D. Maintain a non-redundant parent candidate set</h4>
+  <p>For every accepted candidate, compare it against the current <code>newParents</code> snapshot. If the candidate is semantically contained by an existing parent, discard it. If an existing parent is semantically contained by the candidate, remove that parent. Otherwise append the candidate. The result approximates a maximal, non-redundant local frontier.</p>
+
+  <h4>E. Materialize and rewire</h4>
+  <p>Materialize or reuse <code>target</code> as <code>newConcept</code>. For every new parent candidate:</p>
+  <ul>
+    <li>If the candidate lies symbolically between the generator and new concept, remove the old direct generator-to-candidate edge.</li>
+    <li>Orient and add the candidate/new-concept edge according to <code>locallyMoreGeneral</code>.</li>
+  </ul>
+  <p>If this call had a preferred original candidate, connect it below the new concept when symbolic ordering permits, removing a now-bypassed generator edge if necessary.</p>
+  <p>Then test whether any selected parent already lies between generator and new concept. If none does, link generator and new concept directly in the valid orientation.</p>
+
+  <h4>F. Finish</h4>
+  <p>Update bottom-frontier membership from whether <code>newConcept</code> has children, remove <code>callKey</code> from the recursion guard, and return the new/reused concept.</p>
+  <div class="box warn"><strong>Exceptional-path note:</strong> <code>activeCalls.remove(callKey)</code> is not protected by <code>finally</code>. If an exception occurs after insertion into the guard, the caller’s temporary guard can retain the key; the entire guard is nevertheless discarded when that <code>addIntent</code> call terminates.</div></div>
+
+  <h2>6. Symbolic-order and edge helpers</h2>
+  <div class="method"><h3><code>effectiveSymbols</code></h3><div class="sig">def effectiveSymbols(acceptedIds, concept, instance): Set[String]</div>
+  <p>If the node belongs to the accepted ancestor closure, return its current symbol set plus the incoming symbol; otherwise return its current symbols. This is a non-mutating preview of the post-insertion extent used while edges are arranged before model refitting.</p></div>
+
+  <div class="method"><h3><code>locallyMoreGeneral</code></h3><div class="sig">def locallyMoreGeneral(acceptedIds, parent, child, instance): Boolean</div>
+  <ol><li>Calculate both nodes’ effective symbol sets.</li><li>Require the child set to be a subset of the parent set.</li><li>Require the sets to differ.</li></ol>
+  <p>Thus the relation is strict symbolic superset: parent is more general. Set comparison is roughly O(|parent| + |child|), subject to hash-set behavior.</p></div>
+
+  <div class="method"><h3><code>link</code></h3><div class="sig">def link(bottomFrontier, acceptedIds, parent, child, instance): Unit</div>
+  <ol><li>Reject self-links.</li><li>Reject links that do not satisfy strict effective-symbol ordering.</li><li>Add the child ID to the parent and the parent ID to the child, preserving bidirectional adjacency.</li><li>Remove the parent from the bottom frontier because it now has a child.</li><li>Add the child to the frontier if it has no children.</li></ol>
+  <p>Linked sets make repeated insertion idempotent. The method checks order but does not independently prove the edge is a Hasse cover; callers remove known intermediate edges locally.</p></div>
+
+  <h2>7. Main insertion method</h2>
+  <div class="method"><h3><code>addIntent</code></h3><div class="sig">def addIntent(instance: Instance): Node</div>
+  <p><span class="label">Purpose.</span> Coordinate one bounded incremental insertion while keeping learned-model observations stable during structural modification.</p>
+  <ol>
+    <li><strong>Empty case:</strong> create, store, and return a singleton node.</li>
+    <li><strong>Per-call state:</strong> create target, subset, distance, and coherence caches; initialize <code>acceptedIds</code>.</li>
+    <li><strong>Bottom frontier:</strong> collect up to 32 current leaves in map order, sort by incoming distance and ID, and retain the closest 8.</li>
+    <li><strong>Recursion guard:</strong> create an empty <code>activeCalls</code> set.</li>
+    <li><strong>Initial generator:</strong> search upward for a maximal compatible concept.</li>
+    <li><strong>Accepted closure:</strong> if a generator exists, gather it and up to 23 reachable ancestors into <code>acceptedIds</code>.</li>
+    <li><strong>Missing-generator repair:</strong> if absent, sample root nodes, keep coherent ones, choose the closest, materialize <code>root extent ∪ {instance}</code>, and link it above the root when possible.</li>
+    <li><strong>Generator retry:</strong> use the original generator or search again after root/intersection creation.</li>
+    <li><strong>Structural insertion:</strong> call <code>addIntentRecursively</code> on the singleton target.</li>
+    <li><strong>Delayed model update:</strong> for every accepted ID, add the instance if its symbol is new, then refit that node’s CVA model.</li>
+    <li>Return the node representing the inserted singleton target.</li>
+  </ol>
+  <p><span class="label">Why delayed refitting matters.</span> Distance, coherence, and subset caches are keyed only by node IDs. Refitting during traversal could make cached values stale. Structural insertion therefore sees one stable old-model snapshot; accepted extents and models change only at the end.</p>
+  <div class="box warn"><strong>Validation note:</strong> <code>validateInstance</code> exists but <code>addIntent</code> does not call it. An invalid dimension will normally be rejected later by CVA fitting or distance validation; an empty symbol is not explicitly rejected on this path.</div></div>
+
+  <div class="method"><h3><code>ancestorClosure</code> (nested in <code>addIntent</code>)</h3><div class="sig">def ancestorClosure(start: Node): Set[Long]</div>
+  <ol><li>Push the start node into an <code>ArrayDeque</code>.</li><li>Repeatedly pop the last node, creating depth-first-like traversal.</li><li>If its ID was not seen, add it and append all existing parents.</li><li>Stop at an empty deque or 24 visited nodes.</li><li>Return an immutable ID set.</li></ol>
+  <p>Cycles would not loop forever because IDs are visited once, and the visit cap provides a second bound. The cap also means not every ancestor is guaranteed to receive the new instance.</p></div>
+
+  <h2>8. Reporting and public intersection</h2>
+  <div class="method"><h3><code>printRandomNodeSymbols</code></h3><div class="sig">def printRandomNodeSymbols(nodeCount = 5, symbolsPerNode = 2, random = Random): Unit</div>
+  <ol><li>Filter nodes whose extent size is at least <code>symbolsPerNode</code>.</li><li>Materialize them as an indexed sequence and shuffle with the supplied random generator.</li><li>Take at most <code>nodeCount</code>.</li><li>Sort the selected sample by descending size and ascending ID.</li><li>Format each node plus parent and child IDs and print the lines.</li></ol>
+  <p>This is a diagnostic side effect, not part of insertion. Supplying a seeded <code>Random</code> makes selection reproducible. It may allocate and shuffle O(N) eligible nodes.</p></div>
+
+  <div class="method"><h3><code>intersection</code></h3><div class="sig">def intersection(a: Node, b: Node): Node</div>
+  <p>Concatenate both extents, deduplicate by symbol, and pass the result to <code>insertOrMergeCandidate</code>. In this learned formulation, an “intent intersection” is modeled by fitting CVA to the union of object extents.</p>
+  <p>The method can insert a node or merge instances into an equivalent node, but it does not establish or rebuild graph edges. Calling it alone can therefore change node content without making topology a complete cover relation.</p></div>
+
+  <h2>9. Equivalence, coverage, and order</h2>
+  <div class="method"><h3><code>equivalent</code></h3><div class="sig">def equivalent(a: Node, b: Node): Boolean</div>
+  <ol><li>Compute the fraction of <code>b</code> instances classified by <code>a</code>.</li><li>Compute the reverse fraction.</li><li>Require both to meet <code>equalityCoverage</code>.</li><li>If configured, also require each node to classify the other’s common vector.</li></ol>
+  <p>This is learned mutual equivalence rather than equality of symbol sets. It is symmetric because both directions are explicitly tested. Cost is O(|a| + |b|) classifications, plus two optional common-vector classifications.</p></div>
+
+  <div class="method"><h3><code>semanticallyContains</code></h3><div class="sig">def semanticallyContains(parent: Node, child: Node): Boolean</div>
+  <p>Return whether the parent model classifies at least <code>equalityCoverage</code> of the child extent. This is identical in meaning to an uncached <code>intentSubset(parent, child)</code>. It is useful for learned ranking/search but intentionally not the sole topology rule.</p></div>
+
+  <div class="method"><h3><code>coverage</code></h3><div class="sig">def coverage(classifier: Node, xs: Iterable[Instance]): Double</div>
+  <ol><li>Traverse <code>xs</code> once.</li><li>Count total instances and those classified by the node.</li><li>Return <code>accepted / total</code> as a double.</li><li>For an empty input, return 1.0.</li></ol>
+  <p>Empty coverage is vacuously true. The method is O(K) classifier calls, where K is the number of input instances, and uses O(1) extra space.</p></div>
+
+  <div class="method"><h3><code>isMoreGeneral</code></h3><div class="sig">def isMoreGeneral(parent: Node, child: Node): Boolean</div>
+  <p>Return true exactly when <code>child.symbols</code> is a proper subset of <code>parent.symbols</code>. Unlike <code>locallyMoreGeneral</code>, it uses actual current symbols and does not preview pending accepted updates. It is the authoritative structural relation used by validation and full cover rebuilding.</p></div>
+
+  <h2>10. Structural validation and description</h2>
+  <div class="method"><h3><code>validate</code></h3><div class="sig">def validate(): Unit</div>
+  <p>For every node, inspect both directions of every adjacency:</p>
+  <ul><li>Each parent ID must exist.</li><li>The parent must list this node as a child.</li><li>The parent must be strictly more general by actual symbolic extent.</li><li>Each child ID must exist.</li><li>The child must list this node as a parent.</li><li>The current node must be strictly more general than that child.</li></ul>
+  <p>Violations throw <code>IllegalArgumentException</code> through <code>require</code>, with an explanatory message. The method checks existence, symmetry, and edge order. It does not check that every valid cover edge exists, that an edge has no intermediate node, that all nodes are reachable, or that learned models match their extents.</p></div>
+
+  <div class="method"><h3><code>describe</code></h3><div class="sig">def describe(): String</div>
+  <p>Take a node snapshot, sort by descending extent size and ascending ID, format each node with parent/child ID lists, and join the records with newlines. Since <code>Node.toString</code> formats the common vector, output cost includes all formatted vector components as well as the O(N log N) sort.</p></div>
+
+  <h2>11. Auxiliary merge and topology maintenance</h2>
+  <div class="box warn"><strong>Call-path distinction.</strong> The following helpers exist in the class, but <code>addIntent</code> does not invoke the global coalescing or cover-rebuild methods. Normal insertion performs bounded local maintenance instead.</div>
+
+  <div class="method"><h3><code>insertOrMergeCandidate</code></h3><div class="sig">private def insertOrMergeCandidate(candidateInstances): Node</div>
+  <ol><li>Create and fit a new candidate immediately, consuming a new ID.</li><li>Linearly scan for the first equivalent existing node.</li><li>If found, union candidate instances into it; refit once if its extent changes; return it.</li><li>Otherwise insert and return the candidate.</li></ol>
+  <p>An ID can be consumed even when the temporary candidate is discarded. Existing edges are not adjusted after a merge changes an extent.</p></div>
+
+  <div class="method"><h3><code>findEquivalent</code></h3><div class="sig">private def findEquivalent(candidate: Node): Option[Node]</div>
+  <p>Scan <code>nodeMap</code> in insertion order and return the first node satisfying learned mutual equivalence. Worst-case cost is a full scan with extent-based classification at every node. If several equivalents exist, linked-map order determines the survivor selected.</p></div>
+
+  <div class="method"><h3><code>coalesceEquivalentNodes</code></h3><div class="sig">private def coalesceEquivalentNodes(): Unit</div>
+  <ol><li>Repeat passes until a pass finds no merge.</li><li>Snapshot current nodes and compare pairs in index order.</li><li>When two still-present nodes are equivalent, retain the lower ID and union the dropped node’s instances into it, causing a refit.</li><li>Remove the dropped node from <code>nodeMap</code>.</li><li>Stop that pass after one merge and restart with a fresh snapshot.</li></ol>
+  <p>Restarting is necessary because refitting the survivor can change equivalence relationships. The routine can be expensive—at least quadratic comparisons per pass and potentially many passes.</p>
+  <div class="box warn"><strong>Topology caveat:</strong> it removes the dropped node only from <code>nodeMap</code>; it does not redirect or remove IDs in neighbors’ parent/child sets. A subsequent <code>rebuildCoverRelations</code> is needed to restore clean topology.</div></div>
+
+  <div class="method"><h3><code>rebuildCoverRelations</code></h3><div class="sig">private def rebuildCoverRelations(): Unit</div>
+  <ol><li>Clear every node’s parents and children.</li><li>For every ordered pair of distinct nodes, test whether the first is strictly more general.</li><li>If so, scan all nodes for a third concept strictly between them.</li><li>Add the edge only when no intermediate concept exists.</li></ol>
+  <p>This reconstructs the Hasse cover relation from symbolic extents and restores symmetric adjacency. It is O(N³) set-relation tests in the straightforward implementation, so it is suitable as global maintenance rather than the per-insertion path.</p></div>
+
+  <div class="method"><h3><code>mostSpecificNodeContaining</code></h3><div class="sig">private def mostSpecificNodeContaining(symbol: String): Option[Node]</div>
+  <p>Filter nodes whose symbolic extent contains the requested symbol, sort by ascending extent size then ID, and return the first. “Most specific” therefore means smallest symbolic extent, with deterministic ID tie-breaking. Complexity is O(N log N) after symbol membership tests.</p></div>
+
+  <h2>12. Node construction and input utilities</h2>
+  <div class="method"><h3><code>createNode</code></h3><div class="sig">private def createNode(instances: Iterable[Instance]): Node</div>
+  <ol><li>Deduplicate instances by symbol.</li><li>Atomically fetch and increment <code>nextId</code>.</li><li>Construct a <code>Node</code>, whose constructor requires a nonempty extent and fits its initial CVA model.</li></ol>
+  <p>Creation does not insert the node into <code>nodeMap</code>. The caller decides whether a temporary candidate becomes persistent. IDs remain unique even if candidates are discarded; gaps are normal.</p></div>
+
+  <div class="method"><h3><code>deduplicateInstances</code></h3><div class="sig">private def deduplicateInstances(xs): Vector[Instance]</div>
+  <p>Traverse input in order and write each instance into a <code>LinkedHashMap</code> keyed by symbol. A repeated symbol replaces the stored value. Return map values as a vector.</p>
+  <p>The order is based on the first insertion position of each symbol, while the retained value is the last occurrence assigned to that symbol. Expected time is O(K), with O(U) space for U unique symbols.</p></div>
+
+  <div class="method"><h3><code>validateInstance</code></h3><div class="sig">private def validateInstance(instance: Instance): Unit</div>
+  <ol><li>Require a nonempty symbol.</li><li>Require the vector element count to equal <code>cva.dimension</code>.</li></ol>
+  <p>Failure throws via <code>require</code>. This helper is currently not called elsewhere in <code>Lattice.scala</code>, so it documents intended preconditions more than it enforces the public insertion boundary.</p></div>
+
+  <h2>13. End-to-end state transition</h2>
+  <pre>incoming Instance
+      ↓
+fit/cache singleton target
+      ↓
+sample closest bottom nodes
+      ↓
+bounded upward generator search
+      ↓
+preview accepted ancestors with effectiveSymbols
+      ↓
+recursively create/reuse local union candidates
+      ↓
+materialize node and repair nearby symbolic edges
+      ↓
+add instance to accepted extents and refit their CVA models
+      ↓
+return the singleton’s canonical lattice node</pre>
+
+  <h2>14. Complexity and behavioral summary</h2>
+  <table>
+    <thead><tr><th>Concern</th><th>Behavior</th></tr></thead>
+    <tbody>
+      <tr><td>Insertion search</td><td>Bounded by samples, starts, visits, recursion depth, and children per generator; extent scans and CVA operations remain data-dependent.</td></tr>
+      <tr><td>Consistency</td><td>Models remain unchanged during structural work; accepted models refit afterward, preserving per-call cache validity.</td></tr>
+      <tr><td>Topology</td><td>Edges use strict symbolic inclusion. Local insertion does not guarantee the globally complete Hasse cover relation.</td></tr>
+      <tr><td>Equivalence</td><td>Mutual learned coverage, optionally strengthened by mutual common-vector classification.</td></tr>
+      <tr><td>Determinism</td><td>ID tie-breakers and linked insertion order help, but bounded sampling and caller-supplied randomness in diagnostics affect selected nodes.</td></tr>
+      <tr><td>Approximation</td><td>A compatible or equivalent node outside the searched neighborhood can be missed. Learned containment need not satisfy exact FCA laws.</td></tr>
+      <tr><td>Global maintenance</td><td>Full equivalence coalescing and O(N³) cover rebuilding exist as private helpers but are not part of normal <code>addIntent</code>.</td></tr>
+    </tbody>
+  </table>
+  <div class="box"><strong>Final interpretation.</strong> <code>Lattice</code> is best understood as a bounded, incremental, learned concept graph. The code uses CVA semantics to decide which concepts resemble or classify one another, while using symbolic extents to maintain a true partial-order direction. Its method design emphasizes local updates, stable per-insertion observations, and controlled runtime over exhaustive reconstruction.</div>
+  <p class="meta">Source analyzed: <code>src/cvafca/Lattice.scala</code>. Supporting behavioral interpretation uses the called <code>Node</code> and <code>CVA</code> APIs.</p>
+</body>
+</html>
