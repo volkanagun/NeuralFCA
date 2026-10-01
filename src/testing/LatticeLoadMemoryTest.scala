@@ -89,12 +89,16 @@ object LatticeLoadMemoryTest:
         }
         assert(Pointer.totalCount() <= before, "Loaded tensors escaped the caller's pointer scope")
 
-        // EOF inside a node must stop recovery without publishing that partial node.
+        // EOF inside a node must reject the checkpoint instead of resuming from
+        // a misleading partial lattice.
         val completeBytes = Files.readAllBytes(source)
         Files.write(truncated, completeBytes.dropRight(4))
-        val recovered = new Lattice(new CVA(dimension)).load(truncated.toString)
-        assert(recovered.size == count - 1)
-        assert(recovered.nodes.forall(_.id < count - 1))
+        var rejectedTruncatedFile = false
+        try new Lattice(new CVA(dimension)).load(truncated.toString)
+        catch
+          case error: IllegalArgumentException =>
+            rejectedTruncatedFile = error.getMessage.startsWith("Truncated lattice file")
+        assert(rejectedTruncatedFile)
 
         // Without an outer scope, returned tensors must remain alive after construction cleanup.
         val independent = new Lattice(new CVA(dimension)).load(source.toString)

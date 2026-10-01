@@ -407,7 +407,12 @@ class Lattice(
    * target. Because every search bound is fixed, this favors predictable local
    * insertion cost over exhaustive global AddIntent behavior.
    */
-  def addIntent(instance: Instance): Node =
+  def addIntent(instance: Instance): Node = this.synchronized {
+    addIntentUnsafe(instance)
+  }
+
+  /** The lattice graph and its linked maps form one mutation transaction. */
+  private def addIntentUnsafe(instance: Instance): Node =
     // Bounded AddIntent approximation. These limits keep insertion cost tied
     // to a small local neighborhood instead of total lattice size.
 
@@ -674,8 +679,7 @@ class Lattice(
 
       reportProgress("nodes", 0, force = true)
       var nodeIndex = 0
-      var reachedUnexpectedEof = false
-      while nodeIndex < nodeCount && !reachedUnexpectedEof do
+      while nodeIndex < nodeCount do
         try
             val id = input.readLong()
             if loadedNodes.contains(id) then
@@ -707,22 +711,27 @@ class Lattice(
             nodeIndex += 1
             reportProgress("nodes", nodeIndex, force = nodeIndex == nodeCount)
         catch
-          case _: EOFException =>
-            reachedUnexpectedEof = true
-            System.err.println(
-              s"Lattice file ended unexpectedly after ${loadedNodes.size} of $nodeCount complete nodes; " +
-                "loading the recoverable subgraph."
+          case error: EOFException =>
+            throw new IllegalArgumentException(
+              s"Truncated lattice file: read ${loadedNodes.size} of $nodeCount declared nodes. " +
+                "The checkpoint cannot be resumed safely.",
+              error
             )
 
       reportProgress("edges", 0, force = true)
-      // A complete node can refer to the unfinished record. Keep the complete
-      // node and remove only links whose other endpoint was not recovered.
-      val knownIds = loadedNodes.keySet.toSet
+      var restoredNodes = 0
       loadedNodes.valuesIterator.foreach { loaded =>
-        loaded.parents.filterInPlace(knownIds.contains)
-        loaded.children.filterInPlace(knownIds.contains)
+        loaded.parents.foreach { parentId =>
+          if !loadedNodes.contains(parentId) then
+            throw new IllegalArgumentException(s"Missing parent $parentId of node ${loaded.id}")
+        }
+        loaded.children.foreach { childId =>
+          if !loadedNodes.contains(childId) then
+            throw new IllegalArgumentException(s"Missing child $childId of node ${loaded.id}")
+        }
+        restoredNodes += 1
+        reportProgress("edges", restoredNodes, force = restoredNodes == nodeCount)
       }
-      reportProgress("edges", loadedNodes.size, force = true)
 
       val minimumNextId = loadedNodes.keysIterator.maxOption.map(_ + 1L).getOrElse(0L)
       if storedNextId < minimumNextId then
@@ -742,7 +751,11 @@ class Lattice(
     this
 
   /** Writes this lattice to `filename`. */
-  def save(filename: String): Lattice =
+  def save(filename: String): Lattice = this.synchronized {
+    saveUnsafe(filename)
+  }
+
+  private def saveUnsafe(filename: String): Lattice =
     def writeTensor(output: DataOutputStream, tensor: Tensor[BFloat16]): Unit =
       val shape = tensor.shape
       output.writeInt(shape.length)
@@ -753,7 +766,12 @@ class Lattice(
 
     // Freeze the sequence and count together so the header always describes
     // exactly the records written by this save operation.
-    val latticeNodes = nodeMap.iterator
+    val latticeNodes = nodeMap.iterator.toArray
+    if latticeNodes.length != nodeMap.size then
+      throw new IllegalStateException(
+        s"Lattice map is internally inconsistent: size=${nodeMap.size}, iterable=${latticeNodes.length}. " +
+          "This usually indicates concurrent mutation from an older training run."
+      )
     val storedNextId = nextId.get()
     val target = Paths.get(filename).toAbsolutePath
     val temporary = Files.createTempFile(target.getParent, ".lattice-save-", ".tmp")
@@ -765,7 +783,7 @@ class Lattice(
           output.writeInt(Lattice.FileVersion)
           output.writeInt(cva.dimension)
           output.writeLong(storedNextId)
-          output.writeInt(nodeMap.size)
+          output.writeInt(latticeNodes.length)
 
           latticeNodes.foreach { (id, latticeNode) =>
             output.writeLong(id)

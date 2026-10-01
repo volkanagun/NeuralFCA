@@ -5,6 +5,7 @@ import similarity.Evaluate
 
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.ForkJoinPool
+import org.bytedeco.pytorch.global.torch as nativeTorch
 import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
 import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
@@ -35,6 +36,11 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     parallelValues.tasksupport = taskSupport
     parallelValues.foreach(operation)
 
+  private def configureCpu(): Unit =
+    // addIntent is a graph mutation transaction, while its tensor operations
+    // use PyTorch's native CPU pool across all available processors.
+    nativeTorch.set_num_threads(cpuParallelism)
+
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
@@ -44,6 +50,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     val startedAt = System.nanoTime()
     var processed = 0L
 
+    configureCpu()
     val workerPool = new ForkJoinPool(cpuParallelism)
     val taskSupport = new ForkJoinTaskSupport(workerPool)
     println(s"Training with $cpuParallelism CPU workers")
@@ -83,6 +90,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     val startedAt = System.nanoTime()
     var processed = 0L
 
+    configureCpu()
     val workerPool = new ForkJoinPool(cpuParallelism)
     val taskSupport = new ForkJoinTaskSupport(workerPool)
     println(s"Training with $cpuParallelism CPU workers")
