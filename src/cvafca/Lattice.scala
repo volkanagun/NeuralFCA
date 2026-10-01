@@ -1,13 +1,16 @@
 package cvafca
 
 import scala.collection.mutable
-import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, DataOutputStream, FileInputStream, FileOutputStream}
+import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, DataOutputStream, EOFException, FileInputStream, FileOutputStream}
 import java.nio.ByteBuffer
+import java.nio.file.{AtomicMoveNotSupportedException, Files, Paths, StandardCopyOption}
 import java.util.concurrent.atomic.AtomicLong
 import org.bytedeco.javacpp.PointerScope
+
 import scala.util.Random
 import scala.util.Using
-import torch.{Device, BFloat16, Tensor}
+import torch.{BFloat16, Device, Tensor}
+
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
@@ -38,7 +41,7 @@ final case class LatticeConfig(
 class Lattice(
                val cva: CVA,
                val config: LatticeConfig = LatticeConfig(),
-               val c_device:Device = Device.CPU
+               val c_device: Device = Device.CPU
              ):
 
   require(config.equalityCoverage > 0.0 && config.equalityCoverage <= 1.0)
@@ -110,7 +113,8 @@ class Lattice(
         concept.instances.forall { member => {
           val proximity = singletonTarget.distance(member.vector)
           proximity <= cva.config.trainingRadiusScale
-        }}
+        }
+        }
     )
   }
 
@@ -669,51 +673,56 @@ class Lattice(
           lastProgressAt = now
 
       reportProgress("nodes", 0, force = true)
-
-      for nodeIndex <- 0 until nodeCount do
-        val id = input.readLong()
-        if loadedNodes.contains(id) then
-          throw new IllegalArgumentException(s"Duplicate node ID in lattice file: $id")
-        val restoredModel = if version >= 2 then
-          val commonVector = readTensor(input, cva.dimension.toLong)
-          val projection = readTensor(input, cva.dimension.toLong * cva.dimension, isProjection = true)
-          val radius = input.readDouble()
-          require(!radius.isNaN && radius >= 0.0, s"Invalid classification radius for node $id")
-          Some(CvaModel(commonVector, projection, radius))
-        else None
-        val instanceCount = readCount(input, "instance count")
-        if instanceCount == 0 then
-          throw new IllegalArgumentException(s"Node $id has no instances")
-        // Node consumes this iterator directly into its extent, without a second collection.
-        val instances = Iterator.fill(instanceCount) {
-          val symbol = input.readUTF()
-          val vector = readTensor(input, cva.dimension.toLong)
-          Instance(symbol, vector)
-        }
-        val loaded = new Node(id, instances, cva, restoredModel = restoredModel)
-        loadedNodes.put(id, loaded)
-        // IDs can be stored before their nodes exist; check references after reading all nodes.
-        for _ <- 0 until readCount(input, "parent count") do
-          loaded.parents += input.readLong()
-        for _ <- 0 until readCount(input, "child count") do
-          loaded.children += input.readLong()
-        reportProgress("nodes", nodeIndex + 1, force = nodeIndex + 1 == nodeCount)
+      var nodeIndex = 0
+      var reachedUnexpectedEof = false
+      while nodeIndex < nodeCount && !reachedUnexpectedEof do
+        try
+            val id = input.readLong()
+            if loadedNodes.contains(id) then
+              throw new IllegalArgumentException(s"Duplicate node ID in lattice file: $id")
+            val restoredModel = if version >= 2 then
+              val commonVector = readTensor(input, cva.dimension.toLong)
+              val projection = readTensor(input, cva.dimension.toLong * cva.dimension, isProjection = true)
+              val radius = input.readDouble()
+              require(!radius.isNaN && radius >= 0.0, s"Invalid classification radius for node $id")
+              Some(CvaModel(commonVector, projection, radius))
+            else None
+            val instanceCount = readCount(input, "instance count")
+            if instanceCount == 0 then
+              throw new IllegalArgumentException(s"Node $id has no instances")
+            // Node consumes this iterator directly into its extent, without a second collection.
+            val instances = Iterator.fill(instanceCount) {
+              val symbol = input.readUTF()
+              val vector = readTensor(input, cva.dimension.toLong)
+              Instance(symbol, vector)
+            }
+            val loaded = new Node(id, instances, cva, restoredModel = restoredModel)
+            // Finish the whole record before publishing it. If EOF occurs here,
+            // no partially read node is retained.
+            val parents = Array.fill(readCount(input, "parent count"))(input.readLong())
+            val children = Array.fill(readCount(input, "child count"))(input.readLong())
+            loaded.parents.addAll(parents)
+            loaded.children.addAll(children)
+            loadedNodes.put(id, loaded)
+            nodeIndex += 1
+            reportProgress("nodes", nodeIndex, force = nodeIndex == nodeCount)
+        catch
+          case _: EOFException =>
+            reachedUnexpectedEof = true
+            System.err.println(
+              s"Lattice file ended unexpectedly after ${loadedNodes.size} of $nodeCount complete nodes; " +
+                "loading the recoverable subgraph."
+            )
 
       reportProgress("edges", 0, force = true)
-      var restoredNodes = 0
+      // A complete node can refer to the unfinished record. Keep the complete
+      // node and remove only links whose other endpoint was not recovered.
+      val knownIds = loadedNodes.keySet.toSet
       loadedNodes.valuesIterator.foreach { loaded =>
-        val id = loaded.id
-        loaded.parents.foreach { parentId =>
-          if !loadedNodes.contains(parentId) then
-            throw new IllegalArgumentException(s"Missing parent $parentId of node $id")
-        }
-        loaded.children.foreach { childId =>
-          if !loadedNodes.contains(childId) then
-            throw new IllegalArgumentException(s"Missing child $childId of node $id")
-        }
-        restoredNodes += 1
-        reportProgress("edges", restoredNodes, force = restoredNodes == nodeCount)
+        loaded.parents.filterInPlace(knownIds.contains)
+        loaded.children.filterInPlace(knownIds.contains)
       }
+      reportProgress("edges", loadedNodes.size, force = true)
 
       val minimumNextId = loadedNodes.keysIterator.maxOption.map(_ + 1L).getOrElse(0L)
       if storedNextId < minimumNextId then
@@ -725,7 +734,10 @@ class Lattice(
       //println("Lattice load: validating...")
       //validate()
       val elapsed = (System.nanoTime() - startedAt) / 1e9
-      println(f"Lattice load complete: $nodeCount%,d nodes | $sharedIdentityCount%,d identity projections reused | $elapsed%.1f s")
+      println(
+        f"Lattice load complete: ${loadedNodes.size}%,d / $nodeCount%,d nodes | " +
+          f"$sharedIdentityCount%,d identity projections reused | $elapsed%.1f s"
+      )
     }
     this
 
@@ -739,31 +751,55 @@ class Lattice(
       output.writeInt(values.length)
       values.foreach(output.writeFloat)
 
-    Using.resource(
-      new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filename)))
-    ) { output =>
-      output.writeInt(Lattice.FileMagic)
-      output.writeInt(Lattice.FileVersion)
-      output.writeInt(cva.dimension)
-      output.writeLong(nextId.get())
-      output.writeInt(nodeMap.size)
+    // Freeze the sequence and count together so the header always describes
+    // exactly the records written by this save operation.
+    val latticeNodes = nodeMap.iterator
+    val storedNextId = nextId.get()
+    val target = Paths.get(filename).toAbsolutePath
+    val temporary = Files.createTempFile(target.getParent, ".lattice-save-", ".tmp")
 
-      nodeMap.valuesIterator.foreach { latticeNode =>
-        output.writeLong(latticeNode.id)
-        writeTensor(output, latticeNode.commonVector)
-        writeTensor(output, latticeNode.projection)
-        output.writeDouble(latticeNode.classificationRadius)
-        output.writeInt(latticeNode.size)
-        latticeNode.instances.foreach { instance =>
-          output.writeUTF(instance.symbol)
-          writeTensor(output, instance.vector)
+    try
+      Using.resource(new FileOutputStream(temporary.toFile)) { fileOutput =>
+        Using.resource(new DataOutputStream(new BufferedOutputStream(fileOutput))) { output =>
+          output.writeInt(Lattice.FileMagic)
+          output.writeInt(Lattice.FileVersion)
+          output.writeInt(cva.dimension)
+          output.writeLong(storedNextId)
+          output.writeInt(nodeMap.size)
+
+          latticeNodes.foreach { (id, latticeNode) =>
+            output.writeLong(id)
+            writeTensor(output, latticeNode.commonVector)
+            writeTensor(output, latticeNode.projection)
+            output.writeDouble(latticeNode.classificationRadius)
+            output.writeInt(latticeNode.size)
+            latticeNode.instances.foreach { instance =>
+              output.writeUTF(instance.symbol)
+              writeTensor(output, instance.vector)
+            }
+            output.writeInt(latticeNode.parents.size)
+            latticeNode.parents.foreach(output.writeLong)
+            output.writeInt(latticeNode.children.size)
+            latticeNode.children.foreach(output.writeLong)
+          }
+
+          // Ensure all buffered data reaches the filesystem before publication.
+          output.flush()
+          fileOutput.getFD.sync()
         }
-        output.writeInt(latticeNode.parents.size)
-        latticeNode.parents.foreach(output.writeLong)
-        output.writeInt(latticeNode.children.size)
-        latticeNode.children.foreach(output.writeLong)
       }
-    }
+      try
+        Files.move(
+          temporary,
+          target,
+          StandardCopyOption.ATOMIC_MOVE,
+          StandardCopyOption.REPLACE_EXISTING
+        )
+      catch
+        case _: AtomicMoveNotSupportedException =>
+          Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
+    finally
+      Files.deleteIfExists(temporary)
     this
 
   /**

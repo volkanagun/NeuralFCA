@@ -4,14 +4,17 @@ import concept.CVALattice
 import similarity.Evaluate
 
 import java.nio.file.{Files, Paths}
+import java.util.concurrent.ForkJoinPool
 import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
+import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
 
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 48
-  val parallelSize = 1
+  val batchSize = 256
+  val parallelSize = 48
+  val cpuParallelism: Int = 48
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
   val contextVocabulary = Evaluate.readExtrinsic()
@@ -24,6 +27,14 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     if doContext then s"${binaryFilename}fca-cva-${windowSize}.bin"
     else s"${binaryFilename}fca-cva.bin"
 
+  private def parallelForeach[A](
+      values: Array[A],
+      taskSupport: ForkJoinTaskSupport
+  )(operation: A => Unit): Unit =
+    val parallelValues = values.par
+    parallelValues.tasksupport = taskSupport
+    parallelValues.foreach(operation)
+
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
@@ -33,25 +44,30 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     val startedAt = System.nanoTime()
     var processed = 0L
 
-    loads.sliding(parallelSize, parallelSize).foreach(paralelBatch => {
-      paralelBatch.toArray.foreach(batch => {
-        batch.foreach(embedding => {
-          lattice.addIntent(embedding)
+    val workerPool = new ForkJoinPool(cpuParallelism)
+    val taskSupport = new ForkJoinTaskSupport(workerPool)
+    println(s"Training with $cpuParallelism CPU workers")
+    try
+      loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
+        parallelForeach(parallelBatch.toArray, taskSupport)(batch => {
+          batch.foreach(embedding => {
+            lattice.addIntent(embedding)
+          })
+          //lattice.compute()
         })
-        //lattice.compute()
+        //lattice.save(binaryFilename)
+        processed += parallelBatch.iterator.map(_.size.toLong).sum
+        //lattice.printRandomNodeSymbols()
+        val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
+        val hours = elapsedSeconds / 3600
+        val minutes = (elapsedSeconds % 3600) / 60
+        val seconds = elapsedSeconds % 60
+        println(
+          f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
+            f"Nodes: ${lattice.size}%,d"
+        )
       })
-      //lattice.save(binaryFilename)
-      processed += parallelSize * batchSize
-      //lattice.printRandomNodeSymbols()
-      val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
-      val hours = elapsedSeconds / 3600
-      val minutes = (elapsedSeconds % 3600) / 60
-      val seconds = elapsedSeconds % 60
-      println(
-        f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
-          f"Nodes: ${lattice.size}%,d"
-      )
-    })
+    finally workerPool.shutdown()
 
     Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
     lattice.save(binaryFilename(false, 0))
@@ -67,30 +83,35 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     val startedAt = System.nanoTime()
     var processed = 0L
 
-    loads.sliding(parallelSize, parallelSize).foreach(paralelBatch => {
-      paralelBatch.toArray.foreach(batch => {
-        batch.par.foreach(embedding => {
-          lattice.addIntent(embedding)
+    val workerPool = new ForkJoinPool(cpuParallelism)
+    val taskSupport = new ForkJoinTaskSupport(workerPool)
+    println(s"Training with $cpuParallelism CPU workers")
+    try
+      loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
+        parallelBatch.toArray.foreach(batch => {
+          parallelForeach(batch.toArray, taskSupport)(embedding => {
+            lattice.addIntent(embedding)
+          })
         })
+        //lattice.save(binaryFilename)
+        processed += parallelBatch.iterator.map(_.size.toLong).sum
+        //lattice.printRandomNodeSymbols()
+        val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
+        val hours = elapsedSeconds / 3600
+        val minutes = (elapsedSeconds % 3600) / 60
+        val seconds = elapsedSeconds % 60
+        println(
+          f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
+            f"Nodes: ${lattice.size}%,d"
+        )
       })
-      //lattice.save(binaryFilename)
-      processed += batchSize * parallelSize
-      //lattice.printRandomNodeSymbols()
-      val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
-      val hours = elapsedSeconds / 3600
-      val minutes = (elapsedSeconds % 3600) / 60
-      val seconds = elapsedSeconds % 60
-      println(
-        f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
-          f"Nodes: ${lattice.size}%,d"
-      )
-    })
+    finally workerPool.shutdown()
     Files.createDirectories(Paths.get(binaryFilename(true, windowSize)).getParent)
     lattice.save(binaryFilename(true, windowSize))
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(10000, 600) {
+object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -98,18 +119,18 @@ object CVAWordTrainer extends CVAWordTrainer(10000, 600) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.92
-  val endDistance = 1.20
+  val startDistance = 0.80
+  val endDistance = 1.60
 
   def train(crrDistance:Double): Unit = {
-    train(embeddingFilename,sentenceFilename, windowSize, noCVA, avg, crrDistance)
+    train(embeddingFilename,noCVA, crrDistance)
   }
 
   def incremental(startDistance:Double, endDistance:Double): Unit = {
     var crrDistance = startDistance
     while(crrDistance < endDistance){
       train(crrDistance)
-      crrDistance += 0.01
+      crrDistance += 0.05
     }
   }
 

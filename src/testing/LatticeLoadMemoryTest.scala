@@ -35,6 +35,7 @@ object LatticeLoadMemoryTest:
     else
       val source = Files.createTempFile("lattice-shared-projection-", ".bin")
       val saved = Files.createTempFile("lattice-shared-roundtrip-", ".bin")
+      val truncated = Files.createTempFile("lattice-truncated-", ".bin")
       val dimension = 32
       val count = 128
       try
@@ -88,6 +89,13 @@ object LatticeLoadMemoryTest:
         }
         assert(Pointer.totalCount() <= before, "Loaded tensors escaped the caller's pointer scope")
 
+        // EOF inside a node must stop recovery without publishing that partial node.
+        val completeBytes = Files.readAllBytes(source)
+        Files.write(truncated, completeBytes.dropRight(4))
+        val recovered = new Lattice(new CVA(dimension)).load(truncated.toString)
+        assert(recovered.size == count - 1)
+        assert(recovered.nodes.forall(_.id < count - 1))
+
         // Without an outer scope, returned tensors must remain alive after construction cleanup.
         val independent = new Lattice(new CVA(dimension)).load(source.toString)
         assert(independent.node(2).commonVector.floatValues.forall(_ == 2f))
@@ -96,3 +104,4 @@ object LatticeLoadMemoryTest:
       finally
         Files.deleteIfExists(source)
         Files.deleteIfExists(saved)
+        Files.deleteIfExists(truncated)

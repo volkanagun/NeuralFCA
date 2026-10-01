@@ -125,7 +125,7 @@ class Evaluate(val nodes: Vector[Node], val embeddingMap: Map[String, torch.Tens
     println(s"[Evaluate] Extrinsic: streaming samples against ${nodes.length} concepts...")
 
     Using.resource(Evaluate.foreachExtrinsic(filename)) { samples =>
-      samples.take(50).foreach { sentence =>
+      samples.foreach { sentence =>
         val priors = tokenizer.tokenize(sentence.readPrior()).reverse.take(window).reverse.flatMap(embeddingMap.get).toVector
         if priors.isEmpty then missingPriors += 1
         else if !supportedTargets.getOrElseUpdate(sentence.target, nodes.exists(_.containsSymbol(sentence.target))) then

@@ -1,8 +1,8 @@
 package testing
 
 import numeric.BFloatTensors.*
-import cvafca.{CVA, CvaConfig, Lattice}
-import java.io.{DataOutputStream, FileOutputStream}
+import cvafca.{CVA, CvaConfig, Instance, Lattice}
+import java.io.{DataOutputStream, FileOutputStream, UTFDataFormatException}
 import java.nio.file.Files
 import scala.util.Using
 
@@ -55,6 +55,18 @@ object LatticePersistenceTest:
       assert(quantized.node(0L).commonVector.floatValues.head == 0.10009765625f)
       quantized.save(saved.toString)
       assert(new Lattice(cva).load(saved.toString).node(0L).commonVector.floatValues.head == 0.10009765625f)
+      val completeCheckpoint = Files.readAllBytes(saved)
+      quantized.node(0L).addInstance(
+        Instance("x" * 65536, numeric.BFloatTensors(Seq(1f, 2f)))
+      )
+      var failedAsExpected = false
+      try quantized.save(saved.toString)
+      catch case _: UTFDataFormatException => failedAsExpected = true
+      assert(failedAsExpected)
+      assert(
+        Files.readAllBytes(saved).sameElements(completeCheckpoint),
+        "A failed save replaced the last complete checkpoint"
+      )
       fixture(1)
       val legacy = new Lattice(cva).load(source.toString)
       assert(legacy.node(0L).commonVector.floatValues.sameElements(Array(1f, 2f)))
