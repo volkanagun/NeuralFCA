@@ -11,6 +11,8 @@ import scala.util.Random
 import scala.util.Using
 import torch.{BFloat16, Device, Tensor}
 
+import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
+
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
@@ -45,11 +47,11 @@ class Lattice(
              ):
 
   require(config.equalityCoverage > 0.0 && config.equalityCoverage <= 1.0)
-  private val maxRecursionDepth = 6
-  private val maxSearchVisits = 4096
-  private val maxBottomSamples = 256
-  private val maxBottomStarts = 128
-  private val maxChildrenPerGenerator = 64
+  private val maxRecursionDepth = 7
+  private val maxSearchVisits = 400
+  private val maxBottomSamples = 500000
+  private val maxBottomStarts = 256
+  private val maxChildrenPerGenerator = 32
   private val nextId = new AtomicLong(0L)
   /** Protected so alternative insertion engines can reuse the same lattice state. */
   protected val nodeMap = mutable.LinkedHashMap.empty[Long, Node]
@@ -62,6 +64,29 @@ class Lattice(
 
   /** Returns the number of nodes currently materialized in the lattice. */
   def size = nodeMap.size
+
+  /** Create an independently mutable structural clone.
+    *
+    * Node containers, extents, and edges are copied. Instance vectors and model
+    * tensors are shared as read-only values; subsequent refits replace a clone's
+    * model rather than modifying those tensors in place.
+    */
+  def cloneLattice(): Lattice = this.synchronized {
+    val cloned = new Lattice(cva, config, c_device)
+    nodeMap.foreach { case (id, source) =>
+      val copied = new Node(
+        id,
+        source.instances,
+        cva,
+        restoredModel = Some(source.model)
+      )
+      copied.parents.addAll(source.parents)
+      copied.children.addAll(source.children)
+      cloned.nodeMap.put(id, copied)
+    }
+    cloned.nextId.set(nextId.get())
+    cloned
+  }
 
   /**
    * Returns the live node having `id`.
@@ -113,8 +138,7 @@ class Lattice(
         concept.instances.forall { member => {
           val proximity = singletonTarget.distance(member.vector)
           proximity <= cva.config.trainingRadiusScale
-        }
-        }
+        }}
     )
   }
 
@@ -435,11 +459,9 @@ class Lattice(
     val bottomFrontier = mutable.LinkedHashSet.from(
       nodeMap.valuesIterator
         .filter(_.children.isEmpty)
-        .take(maxBottomSamples)
         .toList
         .sortBy(concept => (incomingDistance(incomingDistanceCache, concept, instance), concept.id))
-        .take(maxBottomStarts)
-    )
+        .take(maxBottomStarts))
 
 
     val existingGenerator = maximalConcept(bottomFrontier, coherenceCache, subsetCache, incomingDistanceCache, singletonTarget, instance, None)
@@ -447,11 +469,42 @@ class Lattice(
     acceptedIds = accepted
 
     if existingGenerator.isEmpty then {
-      nodeMap.valuesIterator
+      val rootCandidates = nodeMap.valuesIterator
         .filter(_.parents.isEmpty)
         .take(maxBottomSamples)
-        .filter(concept => coherentWithIncoming(coherenceCache, incomingDistanceCache, singletonTarget, concept, instance))
-        .minByOption(root => (incomingDistance(incomingDistanceCache, root, instance), root.id))
+        .toArray.par
+
+      // The mutable insertion caches must not be updated by worker threads.
+      // Snapshot their current values, calculate independent root scores in
+      // parallel, then publish the results and select the minimum sequentially.
+      val knownDistances = incomingDistanceCache.toMap
+      val knownCoherence = coherenceCache.toMap
+      val scoredRoots = rootCandidates.map { root =>
+        val distance = knownDistances.getOrElse(
+          root.id,
+          {
+            val measured = root.distance(instance.vector)
+            if measured.isNaN then Double.PositiveInfinity else measured
+          }
+        )
+        val coherent = knownCoherence.getOrElse(
+          root.id,
+          distance <= cva.config.classificationThreshold &&
+            root.instances.forall { member =>
+              singletonTarget.distance(member.vector) <= cva.config.trainingRadiusScale
+            }
+        )
+        (root, distance, coherent)
+      }.toArray
+
+      scoredRoots.foreach { case (root, distance, coherent) =>
+        incomingDistanceCache.put(root.id, distance)
+        coherenceCache.put(root.id, coherent)
+      }
+      scoredRoots.iterator
+        .filter(_._3)
+        .minByOption { case (root, distance, _) => (distance, root.id) }
+        .map(_._1)
         .foreach { root => {
           val rootIntersection =
             if root.symbols.contains(instance.symbol) then root.instances.toList
@@ -491,14 +544,14 @@ class Lattice(
    */
   def printRandomNodeSymbols(
                               nodeCount: Int = 50,
-                              symbolsPerNode: Int = 2,
+                              symbolsPerNode: Int = 3,
                               random: Random = Random
                             ): Unit = {
 
     val selected = random
       .shuffle(nodes.iterator.filter(_.instances.length >= symbolsPerNode).toIndexedSeq)
       .take(nodeCount)
-
+    
     println(selected.sortBy(n => (-n.size, n.id)).map { n =>
       val ps = n.parents.mkString("[", ",", "]")
       val cs = n.children.mkString("[", ",", "]")
