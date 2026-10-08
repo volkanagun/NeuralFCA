@@ -9,6 +9,7 @@ import java.nio.file.{AtomicMoveNotSupportedException, Files, Path, Paths, Stand
 import scala.collection.mutable
 import scala.util.Using
 import scala.util.Random
+import scala.util.control.NonFatal
 
 class FCATrainer(
                   val embeddingFilename: String = "resources/embeddings/vectors.txt",
@@ -149,19 +150,28 @@ class FCATrainer(
       )
 
     val checkpointNetwork = newNetwork()
-    val network = loadModel(checkpointNetwork) match
-      case Some(path) =>
-        val checkpointMaximum = maximumParameterMagnitude(checkpointNetwork)
-        if checkpointMaximum.isFinite && checkpointMaximum <= maxParameterAbs then
-          println(f"FCA network: resumed from $path (maximum parameter magnitude=$checkpointMaximum%.6f)")
-          checkpointNetwork
-        else
+    val network =
+      try
+        loadModel(checkpointNetwork) match
+          case Some(path) =>
+            val checkpointMaximum = maximumParameterMagnitude(checkpointNetwork)
+            if checkpointMaximum.isFinite && checkpointMaximum <= maxParameterAbs then
+              println(f"FCA network: resumed from $path (maximum parameter magnitude=$checkpointMaximum%.6f)")
+              checkpointNetwork
+            else
+              println(
+                f"FCA network: ignored unstable checkpoint $path " +
+                  f"(maximum parameter magnitude=$checkpointMaximum%.6f, limit=$maxParameterAbs%.6f)"
+              )
+              newNetwork()
+          case None => checkpointNetwork
+      catch
+        case NonFatal(error) =>
           println(
-            f"FCA network: ignored unstable checkpoint $path " +
-              f"(maximum parameter magnitude=$checkpointMaximum%.6f, limit=$maxParameterAbs%.6f)"
+            s"FCA network: ignored incompatible checkpoint ${Paths.get(modelFilename).toAbsolutePath}: " +
+              error.getMessage
           )
           newNetwork()
-      case None => checkpointNetwork
     network.to(device)
     val optimizer = new torch.optim.Adam(network.parameters, learningRate)
     val nodesById = lattice.nodes.iterator.map(node => node.id -> node).toMap
