@@ -271,8 +271,8 @@ class FCATrainer(
 object FCATrainer {
   def main(args: Array[String]): Unit = {
     new FCATrainer(
-      epochs = 3,
-      progressEvery = 1000,
+      epochs = 10,
+      progressEvery = 5000,
       modelFilename = "resources/models/fca-network.pt"
     ).train("resources/binary/fca-cva.bin")
   }
