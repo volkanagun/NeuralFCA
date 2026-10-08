@@ -4,7 +4,7 @@ import torch.*
 import torch.nn.*
 import torch.nn.functional as F
 
-class DeepSet(
+class DeepSetCVA(
                inputDim: Int,
                hiddenDim: Int,
                outputDim: Int
@@ -29,13 +29,8 @@ class DeepSet(
 
 
   def apply(x: Tensor[Float32]): Tensor[Float32] = {
-    // x: [batchSize, setSize, inputDim]
     val encoded = phi(x)
-    // encoded:
-    // [batchSize, setSize, hiddenDim]
     val pooled = encoded.mean(dim = 1)
-    // pooled:
-    // [batchSize, hiddenDim]
     rho(pooled)
   }
 }

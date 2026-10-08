@@ -16,9 +16,11 @@ import torch.{BFloat16, Tensor}
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 8
+  val batchSize = 32
   val parallelSize = 4
   val cpuParallelism: Int = 48
+  val fastBudgetReferenceNodes: Int = 4096
+  val fastMinimumBudgetScale: Double = 0.125
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
   val contextVocabulary = Evaluate.readExtrinsic()
@@ -39,19 +41,41 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 
 
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
+    trainEmbeddings(embeddingFilename, noCVA, minDistance, fast = false)
+
+  def trainFast(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
+    trainEmbeddings(embeddingFilename, noCVA, minDistance, fast = true)
+
+  private def trainEmbeddings(
+      embeddingFilename: String,
+      noCVA: Boolean,
+      minDistance: Double,
+      fast: Boolean
+  ): Lattice =
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
-    val lattice = new Lattice(CVA(dim, config))
+    val latticeConfig =
+      if fast then
+        LatticeConfig(
+          fastBudgetReferenceNodes = fastBudgetReferenceNodes,
+          fastMinimumBudgetScale = fastMinimumBudgetScale
+        )
+      else LatticeConfig()
+    val lattice = new Lattice(CVA(dim, config), latticeConfig)
     if Files.exists(Paths.get(binaryFilename(false, 0))) then
       lattice.load(binaryFilename(false, 0))
     val startedAt = System.nanoTime()
     var processed = 0L
 
-
+    configureCpu()
     loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
       parallelBatch.foreach(batch => {
+        // Lattice insertion is one synchronized graph transaction. Submitting
+        // every insertion to the common fork-join pool only creates a monitor
+        // convoy and can strand the nested distance calculation.
         batch.foreach(embedding => {
-          lattice.addIntent(embedding)
+          if fast then lattice.addIntentFast(embedding)
+          else lattice.addIntent(embedding)
         })
         //lattice.compute()
       })
@@ -113,7 +137,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
+object CVAWordTrainer extends CVAWordTrainer(500000, 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -121,19 +145,23 @@ object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.75
+  val startDistance = 0.65
   val endDistance = 0.85
 
   def train(crrDistance: Double): Unit = {
     train(embeddingFilename, noCVA, crrDistance)
   }
 
+  def trainFast(crrDistance: Double): Unit = {
+    trainFast(embeddingFilename, noCVA, crrDistance)
+  }
+
 
   def incremental(startDistance: Double, endDistance: Double): Unit = {
     var crrDistance = startDistance
     while (crrDistance < endDistance) {
-      train(crrDistance)
-      crrDistance += 0.01
+      trainFast(crrDistance)
+      crrDistance += 0.02
     }
   }
 

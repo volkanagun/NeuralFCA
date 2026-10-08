@@ -4,6 +4,7 @@ import scala.collection.mutable
 import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, DataOutputStream, EOFException, FileInputStream, FileOutputStream}
 import java.nio.ByteBuffer
 import java.nio.file.{AtomicMoveNotSupportedException, Files, Paths, StandardCopyOption}
+import java.util.concurrent.{ForkJoinPool, ForkJoinWorkerThread}
 import java.util.concurrent.atomic.AtomicLong
 import org.bytedeco.javacpp.PointerScope
 
@@ -12,6 +13,7 @@ import scala.util.Using
 import torch.{BFloat16, Device, Tensor}
 
 import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
+import scala.collection.parallel.ForkJoinTaskSupport
 
 
 final case class LatticeConfig(
@@ -19,7 +21,13 @@ final case class LatticeConfig(
                                 equalityCoverage: Double = 1.0,
 
                                 /** If true, also require mutual common-vector classification. */
-                                requireMutualCommonClassification: Boolean = false
+                                requireMutualCommonClassification: Boolean = false,
+
+                                /** Fast-search budgets stay at their maximum through this node count. */
+                                fastBudgetReferenceNodes: Int = 4096,
+
+                                /** Lowest fraction of each fast-search budget used on large lattices. */
+                                fastMinimumBudgetScale: Double = 0.125
                               )
 
 /**
@@ -47,14 +55,58 @@ class Lattice(
              ):
 
   require(config.equalityCoverage > 0.0 && config.equalityCoverage <= 1.0)
+  require(config.fastBudgetReferenceNodes > 0)
+  require(config.fastMinimumBudgetScale > 0.0 && config.fastMinimumBudgetScale <= 1.0)
   private val maxRecursionDepth = 7
   private val maxSearchVisits = 400
   private val maxBottomSamples = 500000
   private val maxBottomStarts = 256
   private val maxChildrenPerGenerator = 32
+  private val fastBottomSamples = 64
+  private val fastBottomStarts = 16
+  private val fastSearchVisits = 256
+  private val fastAncestorRefits = 16
+
+  private final case class FastSearchLimits(
+                                              bottomSamples: Int,
+                                              bottomStarts: Int,
+                                              searchVisits: Int,
+                                              ancestorRefits: Int
+                                            )
+
+  private def fastSearchLimits(nodeCount: Int): FastSearchLimits =
+    val sizeScale = math.sqrt(
+      config.fastBudgetReferenceNodes.toDouble / math.max(1, nodeCount).toDouble
+    )
+    val scale = math.max(config.fastMinimumBudgetScale, math.min(1.0, sizeScale))
+    def scaled(maximum: Int, minimum: Int): Int =
+      math.max(minimum, math.round(maximum * scale).toInt)
+    FastSearchLimits(
+      bottomSamples = scaled(fastBottomSamples, 8),
+      bottomStarts = scaled(fastBottomStarts, 2),
+      searchVisits = scaled(fastSearchVisits, 32),
+      ancestorRefits = scaled(fastAncestorRefits, 1)
+    )
+
   private val nextId = new AtomicLong(0L)
   /** Protected so alternative insertion engines can reuse the same lattice state. */
   protected val nodeMap = mutable.LinkedHashMap.empty[Long, Node]
+  /** Childless-node IDs with constant-time insertion/removal and bounded iteration. */
+  private val bottomNodeIds = mutable.LinkedHashSet.empty[Long]
+
+  private def registerNode(node: Node): Unit =
+    nodeMap.put(node.id, node)
+    if node.children.isEmpty then bottomNodeIds += node.id
+    else bottomNodeIds -= node.id
+
+  private def rebuildBottomNodeIndex(): Unit =
+    bottomNodeIds.clear()
+    nodeMap.valuesIterator.filter(_.children.isEmpty).foreach(node => bottomNodeIds += node.id)
+
+  private def unlink(parent: Node, child: Node): Unit =
+    parent.children.remove(child.id)
+    child.parents.remove(parent.id)
+    if parent.children.isEmpty then bottomNodeIds += parent.id
 
   /**
    * Returns an immutable snapshot of the nodes in deterministic insertion order.
@@ -64,6 +116,18 @@ class Lattice(
 
   /** Returns the number of nodes currently materialized in the lattice. */
   def size = nodeMap.size
+
+  /** Filters a stable node snapshot in parallel while preserving snapshot order. */
+  private def parallelNodeSearch(
+                                  snapshot: Array[Node],
+                                  limit: Int
+                                )(predicate: Node => Boolean): Array[Node] =
+    if snapshot.length <= 1 || Thread.currentThread().isInstanceOf[ForkJoinWorkerThread] then
+      snapshot.filter(predicate).take(limit)
+    else
+      val parallelSnapshot = snapshot.par
+      parallelSnapshot.tasksupport = Lattice.parallelSearchTaskSupport
+      parallelSnapshot.filter(predicate).take(limit).toArray
 
   /** Create an independently mutable structural clone.
     *
@@ -84,6 +148,7 @@ class Lattice(
       copied.children.addAll(source.children)
       cloned.nodeMap.put(id, copied)
     }
+    cloned.rebuildBottomNodeIndex()
     cloned.nextId.set(nextId.get())
     cloned
   }
@@ -215,7 +280,7 @@ class Lattice(
     val materialized = maximalConcept(bottomFrontier, coherenceCache, subsetCache, incomingDistanceCache, target, instance, None)
       .filter(existing => equivalent(existing, target))
       .getOrElse {
-        nodeMap.put(target.id, target)
+        registerNode(target)
         target
       }
     targetCache(target.symbols) = materialized
@@ -257,7 +322,7 @@ class Lattice(
       subsetCache, incomingDistanceCache,
       target, instance, preferredGenerator) match
       case None =>
-        nodeMap.put(target.id, target)
+        registerNode(target)
         bottomFrontier += target
         target
       case Some(generator) =>
@@ -327,8 +392,7 @@ class Lattice(
             newParents.foreach { parent =>
               if locallyMoreGeneral(acceptedIds, generator, newConcept, instance) &&
                 locallyMoreGeneral(acceptedIds, newConcept, parent, instance) then
-                generator.children.remove(parent.id)
-                parent.parents.remove(generator.id)
+                unlink(generator, parent)
               if locallyMoreGeneral(acceptedIds, parent, newConcept, instance) then link(bottomFrontier, acceptedIds, parent, newConcept, instance)
               else link(bottomFrontier, acceptedIds, newConcept, parent, instance)
             }
@@ -336,8 +400,7 @@ class Lattice(
             preferredGenerator.foreach { originalCandidate =>
               if locallyMoreGeneral(acceptedIds, newConcept, originalCandidate, instance) then
                 if locallyMoreGeneral(acceptedIds, generator, newConcept, instance) then
-                  generator.children.remove(originalCandidate.id)
-                  originalCandidate.parents.remove(generator.id)
+                  unlink(generator, originalCandidate)
                 link(bottomFrontier, acceptedIds, newConcept, originalCandidate, instance)
             }
 
@@ -384,8 +447,19 @@ class Lattice(
     if parent.id != child.id && locallyMoreGeneral(acceptedIds, parent, child, instance) then
       parent.children += child.id
       child.parents += parent.id
+      bottomNodeIds -= parent.id
       bottomFrontier.remove(parent)
       if child.children.isEmpty then bottomFrontier += child
+
+  /** Links a generator to a new singleton in the fast path.
+    * The generator is in acceptedIds, so its effective extent already contains
+    * the incoming symbol and is known to be strictly above the new singleton.
+    */
+  private def linkFast(parent: Node, child: Node): Unit =
+    if parent.id != child.id then
+      parent.children += child.id
+      child.parents += parent.id
+      bottomNodeIds -= parent.id
 
 
   /**
@@ -435,6 +509,122 @@ class Lattice(
     addIntentUnsafe(instance)
   }
 
+  /** Faster bounded insertion for large training runs.
+    *
+    * This keeps closest-first generator search and ancestor updates, but omits
+    * full-extent coherence scans and recursive intersection construction. It
+    * samples a small bottom frontier, links the singleton directly below the
+    * most specific compatible generator, and refits a small ancestor closure.
+    */
+  def addIntentFast(instance: Instance): Node = this.synchronized {
+    addIntentFastUnsafe(instance)
+  }
+
+  private def addIntentFastUnsafe(instance: Instance): Node =
+    if nodeMap.isEmpty then
+      val first = createNode(List(instance))
+      registerNode(first)
+      return first
+
+    val incomingDistanceCache = mutable.HashMap.empty[Long, Double]
+    val singletonTarget = createNode(List(instance))
+    val limits = fastSearchLimits(nodeMap.size)
+
+    /** Measure independent model distances on workers, then update the mutable
+      * per-insertion cache on this thread before queue ordering reads it.
+      */
+    def cacheDistancesParallel(concepts: Array[Node]): Unit =
+      val missing = concepts.filterNot(concept => incomingDistanceCache.contains(concept.id))
+      val measured =
+        // A parallel collection invoked by another fork-join worker can park
+        // while holding the lattice monitor and strand its nested task. In that
+        // context sequential evaluation is bounded and guarantees progress.
+        if missing.length <= 1 || Thread.currentThread().isInstanceOf[ForkJoinWorkerThread] then
+          missing.map { concept =>
+            val distance = concept.distance(instance.vector)
+            (concept.id, if distance.isNaN then Double.PositiveInfinity else distance)
+          }
+        else
+          val parallelMissing = missing.par
+          parallelMissing.tasksupport = Lattice.parallelSearchTaskSupport
+          parallelMissing.map { concept =>
+            val distance = concept.distance(instance.vector)
+            (concept.id, if distance.isNaN then Double.PositiveInfinity else distance)
+          }.toArray
+      measured.foreach { case (id, distance) => incomingDistanceCache.put(id, distance) }
+
+    val closestFirst = Ordering.by[Node, (Double, Long)] { concept =>
+      (-incomingDistance(incomingDistanceCache, concept, instance), -concept.id)
+    }
+    val pending = mutable.PriorityQueue.empty[Node](using closestFirst)
+    val scheduled = mutable.HashSet.empty[Long]
+    val bottomCandidates = bottomNodeIds.iterator
+      .flatMap(nodeMap.get)
+      .take(limits.bottomSamples)
+      .toArray
+    cacheDistancesParallel(bottomCandidates)
+    bottomCandidates
+      .sortBy(concept => (incomingDistance(incomingDistanceCache, concept, instance), concept.id))
+      .take(limits.bottomStarts)
+      .foreach { concept =>
+        if scheduled.add(concept.id) then pending.enqueue(concept)
+      }
+
+    val visited = mutable.HashSet.empty[Long]
+    val compatible = mutable.ArrayBuffer.empty[Node]
+    while pending.nonEmpty && visited.size < limits.searchVisits do
+      val concept = pending.dequeue()
+      if visited.add(concept.id) then
+        val distance = incomingDistance(incomingDistanceCache, concept, instance)
+        val acceptsSingleton = distance <= concept.classificationRadius
+        val isNear = distance <= cva.config.classificationThreshold
+        if acceptsSingleton && isNear then compatible += concept
+        else
+          val remainingSlots = limits.searchVisits - scheduled.size
+          if remainingSlots > 0 then
+            val parents = concept.parents.iterator
+              .flatMap(nodeMap.get)
+              .filter(parent => !visited.contains(parent.id) && scheduled.add(parent.id))
+              .take(remainingSlots)
+              .toArray
+            cacheDistancesParallel(parents)
+            parents.foreach(pending.enqueue(_))
+
+    val generator = compatible.minByOption(concept => (concept.size, concept.id))
+    val acceptedIds = generator.map { start =>
+      val closure = mutable.LinkedHashSet.empty[Long]
+      val ancestors = mutable.ArrayDeque(start)
+      val scheduledAncestors = mutable.HashSet(start.id)
+      while ancestors.nonEmpty && closure.size < limits.ancestorRefits do
+        val concept = ancestors.removeLast()
+        if closure.add(concept.id) then
+          val remainingSlots = limits.ancestorRefits - scheduledAncestors.size
+          if remainingSlots > 0 then
+            concept.parents.iterator
+              .flatMap(nodeMap.get)
+              .filter(parent => scheduledAncestors.add(parent.id))
+              .take(remainingSlots)
+              .foreach(ancestors.append)
+      closure.toSet
+    }.getOrElse(Set.empty[Long])
+
+    val objectNode = generator
+      .filter(concept => concept.size == 1 && concept.containsSymbol(instance.symbol))
+      .getOrElse {
+        registerNode(singletonTarget)
+        singletonTarget
+      }
+    generator.foreach { parent =>
+      if parent.id != objectNode.id then linkFast(parent, objectNode)
+    }
+
+    acceptedIds.foreach { conceptId =>
+      nodeMap.get(conceptId).foreach { concept =>
+        concept.addInstanceFast(instance)
+      }
+    }
+    objectNode
+
   /** The lattice graph and its linked maps form one mutation transaction. */
   private def addIntentUnsafe(instance: Instance): Node =
     // Bounded AddIntent approximation. These limits keep insertion cost tied
@@ -442,7 +632,7 @@ class Lattice(
 
     if nodeMap.isEmpty then
       val first = createNode(List(instance))
-      nodeMap.put(first.id, first)
+      registerNode(first)
       return first
 
     val targetCache = mutable.HashMap.empty[Set[String], Node]
@@ -457,9 +647,10 @@ class Lattice(
     // Sample a fixed-size bottom neighborhood, then retain only its closest
     // representatives. This prevents insertion order from deciding the search.
     val bottomFrontier = mutable.LinkedHashSet.from(
-      nodeMap.valuesIterator
-        .filter(_.children.isEmpty)
-        .toList
+      bottomNodeIds.iterator
+        .flatMap(nodeMap.get)
+        .take(maxBottomSamples)
+        .toArray
         .sortBy(concept => (incomingDistance(incomingDistanceCache, concept, instance), concept.id))
         .take(maxBottomStarts))
 
@@ -469,10 +660,9 @@ class Lattice(
     acceptedIds = accepted
 
     if existingGenerator.isEmpty then {
-      val rootCandidates = nodeMap.valuesIterator
-        .filter(_.parents.isEmpty)
-        .take(maxBottomSamples)
-        .toArray.par
+      val nodeSnapshot = nodeMap.valuesIterator.toArray
+      val rootCandidates = parallelNodeSearch(nodeSnapshot, maxBottomSamples)(_.parents.isEmpty).par
+      rootCandidates.tasksupport = Lattice.parallelSearchTaskSupport
 
       // The mutable insertion caches must not be updated by worker threads.
       // Snapshot their current values, calculate independent root scores in
@@ -543,8 +733,8 @@ class Lattice(
    * Supplying a seeded Random makes the output reproducible.
    */
   def printRandomNodeSymbols(
-                              nodeCount: Int = 50,
-                              symbolsPerNode: Int = 3,
+                              nodeCount: Int = 3,
+                              symbolsPerNode: Int = 2,
                               random: Random = Random
                             ): Unit = {
 
@@ -613,6 +803,8 @@ class Lattice(
    * or that an intermediate concept is absent from every edge.
    */
   def validate(): Unit =
+    val expectedBottomIds = nodeMap.valuesIterator.filter(_.children.isEmpty).map(_.id).toSet
+    require(bottomNodeIds.toSet == expectedBottomIds, "Bottom-node index is inconsistent")
     nodeMap.values.foreach { n =>
       n.parents.foreach { pId =>
         require(nodeMap.contains(pId), s"Missing parent $pId of node ${n.id}")
@@ -641,7 +833,7 @@ class Lattice(
     }.mkString("\n")
 
   /** Replaces this lattice with the lattice stored in `filename`, reporting loading progress. */
-  def load(filename: String): Lattice =
+  def load(filename: String, maxCount:Int = 10000000): Lattice =
     val startedAt = System.nanoTime()
     // Models use projections read-only and replace them on refit. Reuse the
     // overwhelmingly common identity instead of retaining dimension² floats per node.
@@ -732,7 +924,8 @@ class Lattice(
 
       reportProgress("nodes", 0, force = true)
       var nodeIndex = 0
-      while nodeIndex < nodeCount do
+      val minCount = math.min(nodeCount, maxCount)
+      while nodeIndex < minCount do
         try
             val id = input.readLong()
             if loadedNodes.contains(id) then
@@ -792,6 +985,7 @@ class Lattice(
 
       nodeMap.clear()
       nodeMap.addAll(loadedNodes)
+      rebuildBottomNodeIndex()
       nextId.set(storedNextId)
       //println("Lattice load: validating...")
       //validate()
@@ -885,3 +1079,6 @@ class Lattice(
 private object Lattice:
   val FileMagic = 0x43564146 // "CVAF"
   val FileVersion = 2
+  val parallelSearchTaskSupport = new ForkJoinTaskSupport(
+    new ForkJoinPool(math.max(1, Runtime.getRuntime.availableProcessors()))
+  )

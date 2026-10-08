@@ -26,6 +26,24 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
   require(config.classificationThreshold >= 0.0, "classificationThreshold cannot be negative")
   require(config.trainingRadiusScale >= 0.0, "trainingRadiusScale cannot be negative")
 
+  // Average and singleton models never mutate their identity projection. Keep
+  // one native tensor per CVA instead of dimension² BFloat16 values per node.
+  private var cachedIdentityProjection = Option.empty[Tensor[BFloat16]]
+
+  private def identityProjection(reference: Tensor[BFloat16]): Tensor[BFloat16] = this.synchronized {
+    cachedIdentityProjection.getOrElse {
+      val identity = numeric.BFloatTensors.scoped {
+        torch.eye(
+          dimension,
+          dtype = torch.float32,
+          device = reference.device
+        ).to(torch.bfloat16)
+      }
+      cachedIdentityProjection = Some(identity)
+      identity
+    }
+  }
+
   def fit(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     if config.noCVA then fit_avg(samples)
     else fit_cva(samples)
@@ -50,7 +68,8 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     require(tensors.nonEmpty, "CVA.fit requires at least one sample")
     tensors.foreach(validate)
 
-    val (projection, commonVector) = CVAUtil.compute_avg(tensors)
+    val projection = identityProjection(tensors.head)
+    val commonVector = numeric.BFloatTensors.average(tensors)
     val provisional = CvaModel(commonVector, projection, radius = 0.0)
     val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
     val radius = math.max(
@@ -64,6 +83,33 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
   def update(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     if config.noCVA then update_avg(samples)
     else update_cva(samples)
+
+  /** Constant-size online update used by bounded lattice insertion.
+    *
+    * Arithmetic is performed in Float32 and the retained model tensors are
+    * converted to BFloat16. The update cost depends on vector dimension rather
+    * than the number of instances already stored in the node.
+    */
+  def update(model: CvaModel, instance: Tensor[BFloat16], sampleCount: Int): CvaModel =
+    require(sampleCount > 1, "Incremental update requires the new total sample count")
+    val (projection, commonVector) =
+      if config.noCVA then
+        val updatedMean = numeric.BFloatTensors.scoped {
+          val previousWeight = (sampleCount - 1).toFloat
+          ((model.commonVector.to(torch.float32) * previousWeight + instance.to(torch.float32)) /
+            sampleCount.toFloat).to(torch.bfloat16)
+        }
+        (model.projection, updatedMean)
+      else
+        CVAUtil.update(instance, model.projection, model.commonVector)
+
+    val provisional = CvaModel(commonVector, projection, model.radius)
+    val incomingResidual = distance(provisional, instance)
+    val radius = math.max(
+      math.max(model.radius, config.classificationThreshold),
+      incomingResidual * config.trainingRadiusScale
+    )
+    provisional.copy(radius = radius)
 
   def update_cva(samples: Iterable[Tensor[BFloat16]]): CvaModel = fit(samples)
 
@@ -87,11 +133,13 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
   // Only a scalar escapes these scopes. Release projections, views and residuals
   // on every call, including training callers without their own PointerScope.
   def distance_cva(model: CvaModel, x: Tensor[BFloat16]): Double =
-    val residual = project(model, x).flatten - model.commonVector.flatten
-    val euclideanDistance = math.sqrt((residual * residual).sum.scalar.toDouble)
+    Using.resource(new PointerScope()) { _ =>
+      val residual = project(model, x).flatten - model.commonVector.flatten
+      val euclideanDistance = math.sqrt((residual * residual).sum.scalar.toDouble)
 
-    if euclideanDistance.isPosInfinity then 1.0
-    else euclideanDistance / (1.0 + euclideanDistance)
+      if euclideanDistance.isPosInfinity then 1.0
+      else euclideanDistance / (1.0 + euclideanDistance)
+    }
 
 
   def distance_average(model: CvaModel, x: Tensor[BFloat16]): Double =

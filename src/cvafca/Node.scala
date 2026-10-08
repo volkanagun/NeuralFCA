@@ -47,6 +47,9 @@ final class Node private[cvafca] (
   /** Vector extent. */
   def instances: Vector[Instance] = extent.values.toVector
 
+  /** Allocation-free traversal for read-only training code. */
+  def instancesIterator: Iterator[Instance] = extent.valuesIterator
+
   /** Symbolic extent. */
   def symbols: Set[String] = extent.keySet.toSet
 
@@ -71,6 +74,14 @@ final class Node private[cvafca] (
     if extent.contains(instance.symbol) then false
     else
       addWithoutRefit(instance)
+      true
+
+  /** Adds one instance and updates the model without rebuilding the full extent. */
+  def addInstanceFast(instance: Instance): Boolean =
+    if extent.contains(instance.symbol) then false
+    else
+      addWithoutRefit(instance)
+      currentModel = cva.update(currentModel, instance.vector, extent.size)
       true
 
   /** Merge another extent into this node, then perform one CVA rebuild. */
