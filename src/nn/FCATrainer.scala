@@ -14,7 +14,7 @@ class FCATrainer(
                   val embeddingFilename: String = "resources/embeddings/vectors.txt",
                   val hiddenDim: Int = 300,
                   val epochs: Int = 1,
-                  val learningRate: Double = 1e-5,
+                  val learningRate: Double = 1e-4,
                   val lambdaDirect: Float = 1.0f,
                   val lambdaGeometry: Float = 0.1f,
                   val maxGradNorm: Double = 1.0,
@@ -97,6 +97,22 @@ class FCATrainer(
     finally
       Files.deleteIfExists(temporary)
 
+  /** Loads an existing checkpoint onto CPU before the network is moved to its training device. */
+  private def loadModel(network: FCANetwork): Option[Path] =
+    val source = Paths.get(modelFilename).toAbsolutePath
+    if Files.notExists(source) then None
+    else
+      require(Files.isRegularFile(source), s"Model checkpoint is not a regular file: $source")
+      Using.resource(new org.bytedeco.pytorch.InputArchive()) { archive =>
+        Using.resource(new org.bytedeco.pytorch.Device("cpu")) { cpuDevice =>
+          Using.resource(new org.bytedeco.pytorch.DeviceOptional(cpuDevice)) { mapLocation =>
+            archive.load_from(source.toString, mapLocation)
+          }
+        }
+        network.load(archive)
+      }
+      Some(source)
+
   /**
    * Loads the FCA checkpoint and randomly samples child-ancestor training pairs.
    *
@@ -120,6 +136,7 @@ class FCATrainer(
       hiddenDim = hiddenDim,
       outputDim = commonVectorDim
     )
+    loadModel(network).foreach(path => println(s"FCA network: resumed from $path"))
     network.to(device)
     val optimizer = new torch.optim.Adam(network.parameters, learningRate)
     val nodesById = lattice.nodes.iterator.map(node => node.id -> node).toMap
