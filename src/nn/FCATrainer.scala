@@ -18,6 +18,7 @@ class FCATrainer(
                   val lambdaDirect: Float = 1.0f,
                   val lambdaGeometry: Float = 0.1f,
                   val maxGradNorm: Double = 1.0,
+                  val maxParameterAbs: Double = 10.0,
                   val batchSize: Int = 1024,
                   val samplesPerEpoch: Long = 1_000_000L,
                   val randomSeed: Long = 0L,
@@ -30,6 +31,7 @@ class FCATrainer(
   require(epochs > 0)
   require(learningRate > 0.0)
   require(maxGradNorm > 0.0)
+  require(maxParameterAbs > 0.0)
   require(batchSize > 0)
   require(samplesPerEpoch > 0L)
   require(progressEvery > 0)
@@ -72,6 +74,14 @@ class FCATrainer(
         val scale = (maxGradNorm / (normValue + 1e-6)).toFloat
         gradients.foreach(_ *= scale)
       normValue
+
+  private def maximumParameterMagnitude(network: FCANetwork): Double =
+    Using.resource(new PointerScope()) { _ =>
+      network.parameters.iterator
+        .map(parameter => parameter.abs.max().item.asInstanceOf[Number].doubleValue())
+        .maxOption
+        .getOrElse(0.0)
+    }
 
   private def saveModel(network: FCANetwork): Path =
     val target = Paths.get(modelFilename).toAbsolutePath
@@ -129,14 +139,29 @@ class FCATrainer(
     val commonVectorDim = latticeDimension(filename)
     val lattice = new Lattice(new CVA(commonVectorDim)).load(filename)
 
-    val network = new FCANetwork(
-      lambdaDirect,
-      lambdaGeometry,
-      inputDim = embeddingDim,
-      hiddenDim = hiddenDim,
-      outputDim = commonVectorDim
-    )
-    loadModel(network).foreach(path => println(s"FCA network: resumed from $path"))
+    def newNetwork(): FCANetwork =
+      new FCANetwork(
+        lambdaDirect,
+        lambdaGeometry,
+        inputDim = embeddingDim,
+        hiddenDim = hiddenDim,
+        outputDim = commonVectorDim
+      )
+
+    val checkpointNetwork = newNetwork()
+    val network = loadModel(checkpointNetwork) match
+      case Some(path) =>
+        val checkpointMaximum = maximumParameterMagnitude(checkpointNetwork)
+        if checkpointMaximum.isFinite && checkpointMaximum <= maxParameterAbs then
+          println(f"FCA network: resumed from $path (maximum parameter magnitude=$checkpointMaximum%.6f)")
+          checkpointNetwork
+        else
+          println(
+            f"FCA network: ignored unstable checkpoint $path " +
+              f"(maximum parameter magnitude=$checkpointMaximum%.6f, limit=$maxParameterAbs%.6f)"
+          )
+          newNetwork()
+      case None => checkpointNetwork
     network.to(device)
     val optimizer = new torch.optim.Adam(network.parameters, learningRate)
     val nodesById = lattice.nodes.iterator.map(node => node.id -> node).toMap
@@ -158,6 +183,7 @@ class FCATrainer(
       trainingAncestors(child).iterator.map(ancestor => (child, ancestor))
     }.toVector
     require(candidatePairs.nonEmpty, "The lattice has no child-ancestor pairs to train")
+    val candidatesByShape = candidatePairs.groupBy(pair => (pair._1.size, pair._2.size))
 
     val totalPairs = Math.multiplyExact(samplesPerEpoch, epochs.toLong)
     val random = new scala.util.Random(randomSeed)
@@ -171,13 +197,19 @@ class FCATrainer(
     var lastGradNorm = Double.NaN
 
     def reportProgress(epoch: Int): Unit =
+      val parameterMaximum = maximumParameterMagnitude(network)
+      if !parameterMaximum.isFinite || parameterMaximum > maxParameterAbs then
+        throw new IllegalStateException(
+          f"Training diverged: maximum parameter magnitude=$parameterMaximum%.6f " +
+            f"exceeds limit=$maxParameterAbs%.6f. The unstable network will not be saved."
+        )
       val percentage = if totalPairs == 0 then 100.0 else processedPairs * 100.0 / totalPairs
       val averageLoss = if trainedPairs == 0 then Double.NaN else totalLoss / trainedPairs
       println(
         f"FCA network: device=$device%s | batch size=$batchSize%d | epoch=$epoch%d/$epochs%d | " +
           f"progress=$processedPairs%,d/$totalPairs%,d ($percentage%6.2f%%) | trained=$trainedPairs%,d | " +
           f"skipped=$skippedPairs%,d | nonfinite=$nonFinitePairs%,d | loss=$lastLoss%.12f | " +
-          f"gradient norm before clipping=$lastGradNorm%.6f"
+          f"gradient norm before clipping=$lastGradNorm%.6f | max parameter=$parameterMaximum%.6f"
       )
 
     network.train()
@@ -193,8 +225,6 @@ class FCATrainer(
           (processedPairs / progressEvery + 1L) * progressEvery,
           totalPairs
         )
-        val pending = mutable.LinkedHashMap.empty[(Int, Int), mutable.ArrayBuffer[(Node, Node)]]
-
         def trainBatch(pairs: Seq[(Node, Node)]): Unit =
           Using.resource(new PointerScope()) { _ =>
             val resolved = pairs.flatMap { case (child, ancestor) =>
@@ -241,15 +271,16 @@ class FCATrainer(
 
         var sampledPairs = 0L
         while sampledPairs < samplesPerEpoch do
-          val pair = candidatePairs(random.nextInt(candidatePairs.size))
-          val key = (pair._1.size, pair._2.size)
-          val bucket = pending.getOrElseUpdate(key, mutable.ArrayBuffer.empty)
-          bucket += pair
-          sampledPairs += 1L
-          if bucket.size >= batchSize then
-            pending.remove(key)
-            trainBatch(bucket.toSeq)
-        pending.valuesIterator.foreach(bucket => trainBatch(bucket.toSeq))
+          // Selecting the seed pair uniformly makes the shape bucket probability
+          // proportional to its candidate count. Sampling the rest from that same
+          // bucket preserves uniform pair sampling while guaranteeing stackable,
+          // full batches instead of flushing thousands of undersized buckets.
+          val seedPair = candidatePairs(random.nextInt(candidatePairs.size))
+          val bucket = candidatesByShape((seedPair._1.size, seedPair._2.size))
+          val currentBatchSize = math.min(batchSize.toLong, samplesPerEpoch - sampledPairs).toInt
+          val batch = Vector.fill(currentBatchSize)(bucket(random.nextInt(bucket.size)))
+          trainBatch(batch)
+          sampledPairs += currentBatchSize
         val epochAverage = if epochPairs == 0 then Double.NaN else epochLoss / epochPairs
         println(
           f"FCA network epoch complete: $epoch%d/$epochs%d | trained=$epochPairs%,d | " +

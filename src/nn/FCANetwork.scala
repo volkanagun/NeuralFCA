@@ -15,9 +15,9 @@ class FCANetwork( lambda1:Float, lambda2:Float,
   val nnTransformation = register(
     nn.Sequential[Float32](
       nn.Linear[Float32](hiddenDim, hiddenDim),
-      nn.GeLU[Float32](),
+      nn.ReLU[Float32](),
       nn.Linear[Float32](hiddenDim, hiddenDim),
-      nn.GeLU[Float32](),
+      nn.ReLU[Float32](),
       nn.Linear[Float32](hiddenDim, outputDim)
     )
   )
