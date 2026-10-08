@@ -19,7 +19,7 @@ class FCATrainer(
                   val lambdaDirect: Float = 1.0f,
                   val lambdaGeometry: Float = 0.1f,
                   val maxGradNorm: Double = 1.0,
-                  val maxParameterAbs: Double = 10.0,
+                  val maxParameterAbs: Double = 1000.0,
                   val batchSize: Int = 1024,
                   val samplesPerEpoch: Long = 1_000_000L,
                   val randomSeed: Long = 0L,
