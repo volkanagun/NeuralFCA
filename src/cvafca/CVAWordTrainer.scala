@@ -5,22 +5,17 @@ import similarity.Evaluate
 
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.ForkJoinPool
-import java.util.concurrent.atomic.LongAdder
 import org.bytedeco.pytorch.global.torch as nativeTorch
-
-import scala.collection.mutable
-import scala.collection.parallel.CollectionConverters.{ArrayIsParallelizable, ImmutableSeqIsParallelizable}
+import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
 import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
 
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 32
-  val parallelSize = 4
+  val batchSize = 256
+  val parallelSize = 48
   val cpuParallelism: Int = 48
-  val fastBudgetReferenceNodes: Int = 4096
-  val fastMinimumBudgetScale: Double = 0.125
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
   val contextVocabulary = Evaluate.readExtrinsic()
@@ -29,73 +24,62 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
   val binaryFilename = "resources/binary/"
 
 
-  def binaryFilename(doContext: Boolean, windowSize: Int): String =
+  def binaryFilename(doContext:Boolean, windowSize:Int):String =
     if doContext then s"${binaryFilename}fca-cva-${windowSize}.bin"
     else s"${binaryFilename}fca-cva.bin"
 
+  private def parallelForeach[A](
+      values: Array[A],
+      taskSupport: ForkJoinTaskSupport
+  )(operation: A => Unit): Unit =
+    val parallelValues = values.par
+    parallelValues.tasksupport = taskSupport
+    parallelValues.foreach(operation)
 
   private def configureCpu(): Unit =
     // addIntent is a graph mutation transaction, while its tensor operations
     // use PyTorch's native CPU pool across all available processors.
     nativeTorch.set_num_threads(cpuParallelism)
 
-
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
-    trainEmbeddings(embeddingFilename, noCVA, minDistance, fast = false)
-
-  def trainFast(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
-    trainEmbeddings(embeddingFilename, noCVA, minDistance, fast = true)
-
-  private def trainEmbeddings(
-      embeddingFilename: String,
-      noCVA: Boolean,
-      minDistance: Double,
-      fast: Boolean
-  ): Lattice =
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
-    val latticeConfig =
-      if fast then
-        LatticeConfig(
-          fastBudgetReferenceNodes = fastBudgetReferenceNodes,
-          fastMinimumBudgetScale = fastMinimumBudgetScale
-        )
-      else LatticeConfig()
-    val lattice = new Lattice(CVA(dim, config), latticeConfig)
+    val lattice = new Lattice(CVA(dim, config))
     if Files.exists(Paths.get(binaryFilename(false, 0))) then
       lattice.load(binaryFilename(false, 0))
     val startedAt = System.nanoTime()
     var processed = 0L
 
     configureCpu()
-    loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-      parallelBatch.foreach(batch => {
-        // Lattice insertion is one synchronized graph transaction. Submitting
-        // every insertion to the common fork-join pool only creates a monitor
-        // convoy and can strand the nested distance calculation.
-        batch.foreach(embedding => {
-          if fast then lattice.addIntentFast(embedding)
-          else lattice.addIntent(embedding)
+    val workerPool = new ForkJoinPool(cpuParallelism)
+    val taskSupport = new ForkJoinTaskSupport(workerPool)
+    println(s"Training with $cpuParallelism CPU workers")
+    try
+      loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
+        parallelForeach(parallelBatch.toArray, taskSupport)(batch => {
+          batch.foreach(embedding => {
+            lattice.addIntent(embedding)
+          })
+          //lattice.compute()
         })
-        //lattice.compute()
+        //lattice.save(binaryFilename)
+        processed += parallelBatch.iterator.map(_.size.toLong).sum
+        //lattice.printRandomNodeSymbols()
+        val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
+        val hours = elapsedSeconds / 3600
+        val minutes = (elapsedSeconds % 3600) / 60
+        val seconds = elapsedSeconds % 60
+        println(
+          f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
+            f"Nodes: ${lattice.size}%,d"
+        )
       })
+    finally workerPool.shutdown()
 
-
-      processed += parallelBatch.iterator.map(_.size.toLong).sum
-      //lattice.printRandomNodeSymbols()
-      val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
-      val hours = elapsedSeconds / 3600
-      val minutes = (elapsedSeconds % 3600) / 60
-      val seconds = elapsedSeconds % 60
-      println(
-        f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
-          f"Nodes: ${lattice.size}%,d"
-      )
-    })
-    Files.createDirectories(Paths.get(binaryFilename(false, 0)).getParent)
+    Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
     lattice.save(binaryFilename(false, 0))
 
-  def train(embeddingFilename: String, filename: String, windowSize: Int, noCVA: Boolean, avg: Boolean, minDistance: Double): Lattice =
+  def train(embeddingFilename: String, filename: String, windowSize: Int, noCVA: Boolean, avg: Boolean, minDistance:Double): Lattice =
     val loads = if avg then cvaDataset.read_avg(embeddingFilename, filename, windowSize, device)
     else cvaDataset.read(embeddingFilename, filename, windowSize, device)
     val ddim = if avg then dim else (windowSize - 1) * dim
@@ -112,8 +96,8 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     println(s"Training with $cpuParallelism CPU workers")
     try
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelBatch.toArray.par.foreach(batch => {
-          batch.foreach(embedding => {
+        parallelBatch.toArray.foreach(batch => {
+          parallelForeach(batch.toArray, taskSupport)(embedding => {
             lattice.addIntent(embedding)
           })
         })
@@ -124,8 +108,6 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
         val hours = elapsedSeconds / 3600
         val minutes = (elapsedSeconds % 3600) / 60
         val seconds = elapsedSeconds % 60
-
-
         println(
           f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
             f"Nodes: ${lattice.size}%,d"
@@ -137,7 +119,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(500000, 300) {
+object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -145,23 +127,18 @@ object CVAWordTrainer extends CVAWordTrainer(500000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.65
-  val endDistance = 0.85
+  val startDistance = 0.80
+  val endDistance = 1.60
 
-  def train(crrDistance: Double): Unit = {
-    train(embeddingFilename, noCVA, crrDistance)
+  def train(crrDistance:Double): Unit = {
+    train(embeddingFilename,noCVA, crrDistance)
   }
 
-  def trainFast(crrDistance: Double): Unit = {
-    trainFast(embeddingFilename, noCVA, crrDistance)
-  }
-
-
-  def incremental(startDistance: Double, endDistance: Double): Unit = {
+  def incremental(startDistance:Double, endDistance:Double): Unit = {
     var crrDistance = startDistance
-    while (crrDistance < endDistance) {
-      trainFast(crrDistance)
-      crrDistance += 0.02
+    while(crrDistance < endDistance){
+      train(crrDistance)
+      crrDistance += 0.05
     }
   }
 

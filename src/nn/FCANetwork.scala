@@ -5,39 +5,48 @@ import torch.{Float32, Tensor, nn}
 class FCANetwork( lambda1:Float, lambda2:Float,
                   inputDim: Int,
                   hiddenDim: Int,
-                  outputDim: Int) extends torch.nn.modules.TensorModule[Float32]{
+                  outputDim: Int,
+                  outputLimit: Float = 4.0f,
+                  huberDelta: Float = 1.0f) extends torch.nn.modules.TensorModule[Float32]{
 
-  require(inputDim > 0 && hiddenDim > 0 && outputDim > 0)
-  require(inputDim == outputDim, "Residual CVA prediction requires equal input and output dimensions")
-
-  val nnSet = register(DeepSetCVA(inputDim, hiddenDim))
-
-  private val summaryDim = inputDim * 2 + hiddenDim * 3 + 1
+  val nnSet = register(DeepSet(inputDim, hiddenDim, hiddenDim))
 
   val nnTransformation = register(
     nn.Sequential[Float32](
-      nn.Linear[Float32](summaryDim, hiddenDim),
-      nn.ReLU[Float32](),
-      nn.Linear[Float32](hiddenDim, hiddenDim),
-      nn.ReLU[Float32](),
-      nn.Linear[Float32](hiddenDim, outputDim)
+      nn.Linear[Float32](hiddenDim, hiddenDim/2),
+      nn.GeLU[Float32](),
+      nn.Linear[Float32](hiddenDim/2, hiddenDim/4),
+      nn.GeLU[Float32](),
+      nn.Linear[Float32](hiddenDim/4, outputDim),
+      nn.Tanh[Float32]()
     )
   )
 
   def cosineSimilarity(
                         a: Tensor[Float32],
                         b: Tensor[Float32],
-                        eps: Float = 1e-6f
+                        dim: Int = 1,
+                        eps: Double = 1e-8
                       ): Tensor[Float32] = {
 
-    val dot = (a * b).sum(dim = -1)
+    val dt = (a * b)
+    val dot = dt.sum(dim = dim)
 
-    // Add epsilon to each squared norm. Clamping only their product produces
-    // gradients near 1/eps when either prediction is close to zero.
-    val normA = torch.sqrt((a * a).sum(dim = -1) + eps)
-    val normB = torch.sqrt((b * b).sum(dim = -1) + eps)
+    val normA = torch.sqrt ((a * a).sum(dim = dim))
+    val normB = torch.sqrt ((b * b).sum(dim = dim))
 
-    dot / (normA * normB)
+    dot / torch.clamp ((normA * normB), Some(eps), None)
+  }
+
+  def euclidNorm(a:Tensor[Float32]):Tensor[Float32]={
+   torch.sqrt(torch.sum(torch.square(a)))
+  }
+
+  def robustLoss(predicted: Tensor[Float32], target: Tensor[Float32]): Tensor[Float32] = {
+    val absDiff = torch.abs(predicted - target)
+    val linear = torch.clamp(absDiff - huberDelta, Some(0.0), None)
+    val quadratic = absDiff - linear
+    ((torch.square(quadratic) * 0.5f) + (linear * huberDelta)).mean
   }
 
   def geometry(x_a:Tensor[Float32], x_b:Tensor[Float32],
@@ -47,57 +56,22 @@ class FCANetwork( lambda1:Float, lambda2:Float,
   }
 
   def direct(x_cva:Tensor[Float32], original:Tensor[Float32]):Tensor[Float32]={
-      val beta = 0.1f
-      val absoluteError = (x_cva - original).abs
-      val smoothL1 = torch.where(
-        absoluteError < beta,
-        torch.square(absoluteError) * (0.5f / beta),
-        absoluteError - beta * 0.5f
-      ).mean
-      val originalSquaredNorm = torch.square(original).sum(dim = -1)
-      val directional = torch.where(
-        originalSquaredNorm > 1e-6f,
-        cosineSimilarity(x_cva, original) * -1f + 1f,
-        0f
-      ).mean
-      val predictedNorm = torch.sqrt(torch.square(x_cva).sum(dim = -1) + 1e-6f)
-      val originalNorm = torch.sqrt(originalSquaredNorm + 1e-6f)
-      val normLoss = torch.square(predictedNorm - originalNorm).mean
-      smoothL1 + directional * 0.05f + normLoss * 0.01f
+      robustLoss(x_cva, original)
   }
 
-  private def predict(x: Tensor[Float32]): Tensor[Float32] = {
-    val mean = x.mean(dim = 1)
-    val centered = x - mean.unsqueeze(1)
-    val variance = torch.square(centered).mean(dim = 1)
-    val standardDeviation = torch.sqrt(variance + 1e-6f)
-    val encodedStatistics = nnSet(x)
-    val setSize = x.shape(1).toLong
-    val sizeFeature = torch.ones(
-      Seq(x.shape.head, 1),
-      dtype = torch.float32,
-      device = x.device
-    ) * math.log1p(setSize.toDouble).toFloat
-    val summary = torch.cat(
-      Seq(mean, standardDeviation, encodedStatistics, sizeFeature),
-      dim = -1
-    )
-    val rawCorrection = nnTransformation(summary)
-    val correctionScale = torch.sqrt(
-      torch.square(mean).mean(dim = -1) + variance.mean(dim = -1) + 1e-6f
-    ).unsqueeze(-1) * 4f
-    val singletonGate = ((setSize - 1).toDouble / setSize.toDouble).toFloat
-    mean + torch.tanh(rawCorrection) * correctionScale * singletonGate
-  }
+  private def bounded(output: Tensor[Float32]): Tensor[Float32] =
+    output * outputLimit
 
 
   def apply(x: Tensor[Float32], y:Tensor[Float32],
             x_cva:Tensor[Float32], y_cva:Tensor[Float32]): Tensor[Float32] = {
     // x: [batchSize, setSize, inputDim]
-    val nncva1 = predict(x)
-    val nncva2 = predict(y)
+    val s1 = nnSet.apply(x)
+    val s2 = nnSet.apply(y)
+    val nncva1 = bounded(nnTransformation(s1))
+    val nncva2 = bounded(nnTransformation(s2))
 
-    val loss1 = (direct(nncva1, x_cva) + direct(nncva2, y_cva)) / 2f
+    val loss1 = direct(nncva1, x_cva)
     val loss2 = geometry(nncva1,nncva2, x_cva, y_cva)
 
 
@@ -107,6 +81,9 @@ class FCANetwork( lambda1:Float, lambda2:Float,
 
   def apply(x: Tensor[Float32]): Tensor[Float32] = {
     // x: [batchSize, setSize, inputDim]
-    predict(x)
+    val s1 = nnSet.apply(x)
+    val nncva1 = bounded(nnTransformation(s1))
+    nncva1
+
   }
 }
