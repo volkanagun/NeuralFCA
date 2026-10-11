@@ -6,16 +6,19 @@ import similarity.Evaluate
 import java.nio.file.{Files, Paths}
 import java.util.concurrent.ForkJoinPool
 import org.bytedeco.pytorch.global.torch as nativeTorch
+
 import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
 import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
 
+import java.io.File
+
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 256
-  val parallelSize = 48
-  val cpuParallelism: Int = 48
+  val batchSize = 10
+  val parallelSize = 10
+  val cpuParallelism: Int = 24
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
   val contextVocabulary = Evaluate.readExtrinsic()
@@ -45,20 +48,20 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
     val lattice = new Lattice(CVA(dim, config))
-    if Files.exists(Paths.get(binaryFilename(false, 0))) then
-      lattice.load(binaryFilename(false, 0))
+    val latticeFilename = binaryFilename(false, 0)
+    if Files.exists(Paths.get(latticeFilename)) then
+      lattice.load(latticeFilename)
+
+
+
     val startedAt = System.nanoTime()
     var processed = 0L
 
-    configureCpu()
-    val workerPool = new ForkJoinPool(cpuParallelism)
-    val taskSupport = new ForkJoinTaskSupport(workerPool)
-    println(s"Training with $cpuParallelism CPU workers")
     try
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelForeach(parallelBatch.toArray, taskSupport)(batch => {
+        parallelBatch.foreach(batch => {
           batch.foreach(embedding => {
-            lattice.addIntent(embedding)
+            lattice.addIntentFast(embedding)
           })
           //lattice.compute()
         })
@@ -74,7 +77,6 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
             f"Nodes: ${lattice.size}%,d"
         )
       })
-    finally workerPool.shutdown()
 
     Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
     lattice.save(binaryFilename(false, 0))
@@ -119,7 +121,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
+object CVAWordTrainer extends CVAWordTrainer(20000, 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -127,8 +129,8 @@ object CVAWordTrainer extends CVAWordTrainer(1000000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.80
-  val endDistance = 1.60
+  val startDistance = 0.30
+  val endDistance = 0.45
 
   def train(crrDistance:Double): Unit = {
     train(embeddingFilename,noCVA, crrDistance)

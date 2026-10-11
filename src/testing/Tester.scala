@@ -72,5 +72,24 @@ object Tester {
     val recursiveConceptCount = recursive.concepts.length
     recursive.intent("ra-copy", ra).intent("rb-copy", rb).intent("rc-copy", rc)
     assert(recursive.concepts.length == recursiveConceptCount)
+
+    // Fast insertion must canonicalize an equivalent object intent instead of
+    // creating a duplicate singleton, and the reused node's extent must refit.
+    val fast = new cvafca.Lattice(new cvafca.CVA(
+      dimension = 2,
+      config = cvafca.CvaConfig(classificationThreshold = 0.95, trainingRadiusScale = 0.95, noCVA = true)
+    ))
+    val fastA = cvafca.Instance("fast-a", numeric.BFloatTensors(Seq(1.0f, 1.0f)))
+    val fastB = cvafca.Instance("fast-b", numeric.BFloatTensors(Seq(1.0f, 1.0f)))
+    val fastFirst = fast.addIntentFast(fastA)
+    val fastSecond = fast.addIntentFast(fastB)
+    assert(fast.size == 1)
+    assert(fastFirst.id == fastSecond.id)
+    assert(fastSecond.symbols == Set("fast-a", "fast-b"))
+    fast.validate()
+
+    val fastRepeat = fast.addIntentFast(fastB)
+    assert(fast.size == 1)
+    assert(fastRepeat.id == fastSecond.id)
   }
 }

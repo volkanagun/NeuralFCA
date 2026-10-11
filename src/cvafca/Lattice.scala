@@ -94,10 +94,20 @@ class Lattice(
   /** Childless-node IDs with constant-time insertion/removal and bounded iteration. */
   private val bottomNodeIds = mutable.LinkedHashSet.empty[Long]
 
-  private def registerNode(node: Node): Unit =
-    nodeMap.put(node.id, node)
-    if node.children.isEmpty then bottomNodeIds += node.id
-    else bottomNodeIds -= node.id
+  /** Reuse exact extents first, then mutually equivalent learned intents.
+    * Search the whole lattice so bounded generator searches cannot create duplicates.
+    * Models remain unchanged until the insertion's final extent updates.
+    */
+  private def registerNode(node: Node): Node =
+    val symbols = node.symbols
+    nodeMap.valuesIterator.find(_.symbols == symbols)
+      .orElse(nodeMap.valuesIterator.find(existing => equivalent(existing, node)))
+      .getOrElse {
+        nodeMap.put(node.id, node)
+        if node.children.isEmpty then bottomNodeIds += node.id
+        else bottomNodeIds -= node.id
+        node
+      }
 
   private def rebuildBottomNodeIndex(): Unit =
     bottomNodeIds.clear()
@@ -279,10 +289,7 @@ class Lattice(
 
     val materialized = maximalConcept(bottomFrontier, coherenceCache, subsetCache, incomingDistanceCache, target, instance, None)
       .filter(existing => equivalent(existing, target))
-      .getOrElse {
-        registerNode(target)
-        target
-      }
+      .getOrElse(registerNode(target))
     targetCache(target.symbols) = materialized
     materialized
 
@@ -322,9 +329,10 @@ class Lattice(
       subsetCache, incomingDistanceCache,
       target, instance, preferredGenerator) match
       case None =>
-        registerNode(target)
-        bottomFrontier += target
-        target
+        val materialized = registerNode(target)
+        targetCache(target.symbols) = materialized
+        if materialized.children.isEmpty then bottomFrontier += materialized
+        materialized
       case Some(generator) =>
         if equivalent(generator, target) then generator
         else
@@ -523,8 +531,7 @@ class Lattice(
   private def addIntentFastUnsafe(instance: Instance): Node =
     if nodeMap.isEmpty then
       val first = createNode(List(instance))
-      registerNode(first)
-      return first
+      return registerNode(first)
 
     val incomingDistanceCache = mutable.HashMap.empty[Long, Double]
     val singletonTarget = createNode(List(instance))
@@ -590,37 +597,76 @@ class Lattice(
             cacheDistancesParallel(parents)
             parents.foreach(pending.enqueue(_))
 
-    val generator = compatible.minByOption(concept => (concept.size, concept.id))
-    val acceptedIds = generator.map { start =>
+    def fastRank(concept: Node): (Double, Int, Long) =
+      (incomingDistance(incomingDistanceCache, concept, instance), concept.size, concept.id)
+
+    def boundedAncestorClosure(starts: Iterable[Node]): Set[Long] =
+      val startNodes = starts.toArray
+      cacheDistancesParallel(startNodes)
+      val ancestorOrdering = Ordering.by[Node, (Double, Long)] { concept =>
+        (-incomingDistance(incomingDistanceCache, concept, instance), -concept.id)
+      }
+      val ancestors = mutable.PriorityQueue.empty[Node](using ancestorOrdering)
+      val scheduledAncestors = mutable.HashSet.empty[Long]
+      startNodes
+        .sortBy(fastRank)
+        .take(limits.ancestorRefits)
+        .foreach { start =>
+          if scheduledAncestors.add(start.id) then ancestors.enqueue(start)
+        }
+
       val closure = mutable.LinkedHashSet.empty[Long]
-      val ancestors = mutable.ArrayDeque(start)
-      val scheduledAncestors = mutable.HashSet(start.id)
       while ancestors.nonEmpty && closure.size < limits.ancestorRefits do
-        val concept = ancestors.removeLast()
+        val concept = ancestors.dequeue()
         if closure.add(concept.id) then
           val remainingSlots = limits.ancestorRefits - scheduledAncestors.size
           if remainingSlots > 0 then
-            concept.parents.iterator
+            val parents = concept.parents.iterator
               .flatMap(nodeMap.get)
               .filter(parent => scheduledAncestors.add(parent.id))
               .take(remainingSlots)
-              .foreach(ancestors.append)
+              .toArray
+            cacheDistancesParallel(parents)
+            parents.foreach(ancestors.enqueue(_))
       closure.toSet
-    }.getOrElse(Set.empty[Long])
 
-    val objectNode = generator
+    val searchedNodes = visited.iterator.flatMap(nodeMap.get).toArray
+    cacheDistancesParallel(searchedNodes)
+    val existingSingletons = nodeMap.valuesIterator
+      .filter(_.size == 1)
+      .toArray
+    cacheDistancesParallel(existingSingletons)
+    val existingObject = existingSingletons
       .filter(concept => concept.size == 1 && concept.containsSymbol(instance.symbol))
-      .getOrElse {
-        registerNode(singletonTarget)
-        singletonTarget
+      .sortBy(fastRank)
+      .headOption
+      .orElse {
+        existingSingletons
+          .sortBy(fastRank)
+          .find(concept => equivalent(concept, singletonTarget))
       }
+      .orElse {
+        searchedNodes
+          .sortBy(fastRank)
+          .find(concept => equivalent(concept, singletonTarget))
+      }
+
+    val objectNode = existingObject.getOrElse(registerNode(singletonTarget))
+    val generator = compatible.sortBy(fastRank).headOption
+    val extentSeeds = (Seq(objectNode) ++ compatible.sortBy(fastRank))
+      .foldLeft(Vector.empty[Node]) { (selected, candidate) =>
+        if selected.exists(_.id == candidate.id) then selected else selected :+ candidate
+      }
+      .take(limits.ancestorRefits)
+    val acceptedIds = boundedAncestorClosure(extentSeeds) + objectNode.id
+
     generator.foreach { parent =>
-      if parent.id != objectNode.id then linkFast(parent, objectNode)
+      if locallyMoreGeneral(acceptedIds, parent, objectNode, instance) then linkFast(parent, objectNode)
     }
 
     acceptedIds.foreach { conceptId =>
       nodeMap.get(conceptId).foreach { concept =>
-        concept.addInstanceFast(instance)
+        if concept.addInstance(instance) then concept.refit()
       }
     }
     objectNode
@@ -632,8 +678,7 @@ class Lattice(
 
     if nodeMap.isEmpty then
       val first = createNode(List(instance))
-      registerNode(first)
-      return first
+      return registerNode(first)
 
     val targetCache = mutable.HashMap.empty[Set[String], Node]
     var acceptedIds = Set.empty[Long]
@@ -718,7 +763,7 @@ class Lattice(
 
     // Models stayed unchanged during structural insertion; refit the accepted
     // ancestor closure now that all local edges have been placed.
-    accepted.foreach { conceptId =>
+    (accepted ++ ancestorClosure(objectNode)).foreach { conceptId =>
       nodeMap.get(conceptId).foreach { concept =>
         if concept.addInstance(instance) then concept.refit()
       }
