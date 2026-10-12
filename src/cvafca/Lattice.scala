@@ -18,16 +18,19 @@ import scala.collection.parallel.ForkJoinTaskSupport
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
-                                equalityCoverage: Double = 1.0,
+                                equalityCoverage: Double = 0.95,
 
                                 /** If true, also require mutual common-vector classification. */
                                 requireMutualCommonClassification: Boolean = false,
 
                                 /** Fast-search budgets stay at their maximum through this node count. */
-                                fastBudgetReferenceNodes: Int = 4096,
+                                fastBudgetReferenceNodes: Int = 1024,
 
                                 /** Lowest fraction of each fast-search budget used on large lattices. */
-                                fastMinimumBudgetScale: Double = 0.125
+                                fastMinimumBudgetScale: Double = 0.125,
+
+                                /** Retained for configuration compatibility; indexed insertion uses full CVA refits. */
+                                fastBasisCacheNodes: Int = 64
                               )
 
 /**
@@ -57,15 +60,16 @@ class Lattice(
   require(config.equalityCoverage > 0.0 && config.equalityCoverage <= 1.0)
   require(config.fastBudgetReferenceNodes > 0)
   require(config.fastMinimumBudgetScale > 0.0 && config.fastMinimumBudgetScale <= 1.0)
+  require(config.fastBasisCacheNodes >= 0)
   private val maxRecursionDepth = 7
   private val maxSearchVisits = 400
   private val maxBottomSamples = 500000
   private val maxBottomStarts = 256
-  private val maxChildrenPerGenerator = 32
-  private val fastBottomSamples = 64
-  private val fastBottomStarts = 16
-  private val fastSearchVisits = 256
-  private val fastAncestorRefits = 16
+  private val maxChildrenPerGenerator = 8
+  private val fastBottomSamples = 96
+  private val fastBottomStarts = 88
+  private val fastSearchVisits = 128
+  private val fastAncestorRefits = 48
 
   private final case class FastSearchLimits(
                                               bottomSamples: Int,
@@ -94,16 +98,73 @@ class Lattice(
   /** Childless-node IDs with constant-time insertion/removal and bounded iteration. */
   private val bottomNodeIds = mutable.LinkedHashSet.empty[Long]
 
+  // FastAddExtent-style exact lookup. Keys are immutable symbol snapshots;
+  // tree keys preserve nodeMap order even when two mutable extents converge.
+  private val extentIndex = mutable.HashMap.empty[Set[String], mutable.TreeMap[Long, Node]]
+  private val singletonIndex = mutable.TreeMap.empty[Long, Node]
+  private val singletonCenters = mutable.LongMap.empty[Array[Float]]
+  private val indexedNodes = mutable.LongMap.empty[(Set[String], Long, Node)]
+  private var indexesReady = false
+  private var nextIndexOrder = 0L
+
+  private def indexExtent(node: Node): Unit =
+    indexedNodes.get(node.id).foreach { case (oldSymbols, order, _) =>
+      extentIndex.get(oldSymbols).foreach { bucket =>
+        bucket.remove(order)
+        if bucket.isEmpty then extentIndex.remove(oldSymbols)
+      }
+      singletonIndex.remove(order)
+      singletonCenters.remove(node.id)
+      val symbols = node.symbols
+      extentIndex.getOrElseUpdate(symbols, mutable.TreeMap.empty).put(order, node)
+      if node.size == 1 then
+        singletonIndex.put(order, node)
+        if cva.config.noCVA || node.identityProjectionKnown then
+          singletonCenters.put(node.id, numeric.BFloatTensors.toArray(node.commonVector))
+      indexedNodes.put(node.id, (symbols, order, node))
+    }
+
+  private def indexNode(node: Node): Unit =
+    val order = nextIndexOrder
+    nextIndexOrder += 1
+    indexedNodes.put(node.id, (Set.empty, order, node))
+    indexExtent(node)
+    node.extentChanged = Some(() => indexExtent(node))
+
+  private def invalidateExtentIndexes(): Unit =
+    indexedNodes.valuesIterator.foreach { case (_, _, node) => node.extentChanged = None }
+    extentIndex.clear()
+    singletonIndex.clear()
+    singletonCenters.clear()
+    indexedNodes.clear()
+    indexesReady = false
+    nextIndexOrder = 0L
+
+  private def ensureExtentIndexes(): Unit =
+    if !indexesReady || indexedNodes.size != nodeMap.size then
+      invalidateExtentIndexes()
+      nodeMap.valuesIterator.foreach(indexNode)
+      indexesReady = true
+
   /** Reuse exact extents first, then mutually equivalent learned intents.
     * Search the whole lattice so bounded generator searches cannot create duplicates.
     * Models remain unchanged until the insertion's final extent updates.
     */
   private def registerNode(node: Node): Node =
+    registerNode(node, existing => equivalent(existing, node))
+
+  private def registerNode(node: Node, sameIntent: Node => Boolean): Node =
+    if indexesReady && indexedNodes.size != nodeMap.size then ensureExtentIndexes()
     val symbols = node.symbols
-    nodeMap.valuesIterator.find(_.symbols == symbols)
-      .orElse(nodeMap.valuesIterator.find(existing => equivalent(existing, node)))
+    val sameExtent =
+      if indexesReady then extentIndex.get(symbols).flatMap(_.headOption.map(_._2))
+      else nodeMap.valuesIterator.find(existing =>
+        existing.size == symbols.size && symbols.forall(existing.containsSymbol))
+    sameExtent
+      .orElse(nodeMap.valuesIterator.find(sameIntent))
       .getOrElse {
         nodeMap.put(node.id, node)
+        if indexesReady then indexNode(node)
         if node.children.isEmpty then bottomNodeIds += node.id
         else bottomNodeIds -= node.id
         node
@@ -522,13 +583,26 @@ class Lattice(
     * This keeps closest-first generator search and ancestor updates, but omits
     * full-extent coherence scans and recursive intersection construction. It
     * samples a small bottom frontier, links the singleton directly below the
-    * most specific compatible generator, and refits a small ancestor closure.
+    * most specific compatible generator, and updates a small ancestor closure.
+    * Average models use online means; CVA models retain full refits to avoid
+    * accumulating numerical drift in their BFloat16 projections.
     */
   def addIntentFast(instance: Instance): Node = this.synchronized {
     addIntentFastUnsafe(instance)
   }
 
-  private def addIntentFastUnsafe(instance: Instance): Node =
+  /** Same search, equivalence, extent updates and edges as addIntentFast.
+    * Adds exact-extent indexes and per-insertion equivalence memoization.
+    * Changed CVA extents use Node.refit and the configured CVA.update path.
+    * Identity-projector singleton bounds reject only impossible matches; all
+    * possible matches still use the original tensor scores and tie breaking.
+    */
+  def addIntentFastIndexed(instance: Instance): Node = this.synchronized {
+    ensureExtentIndexes()
+    addIntentFastUnsafe(instance, indexedSearch = true)
+  }
+
+  private def addIntentFastUnsafe(instance: Instance, indexedSearch: Boolean = false): Node =
     if nodeMap.isEmpty then
       val first = createNode(List(instance))
       return registerNode(first)
@@ -546,7 +620,7 @@ class Lattice(
         // A parallel collection invoked by another fork-join worker can park
         // while holding the lattice monitor and strand its nested task. In that
         // context sequential evaluation is bounded and guarantees progress.
-        if missing.length <= 1 || Thread.currentThread().isInstanceOf[ForkJoinWorkerThread] then
+        if missing.length < 16 || Thread.currentThread().isInstanceOf[ForkJoinWorkerThread] then
           missing.map { concept =>
             val distance = concept.distance(instance.vector)
             (concept.id, if distance.isNaN then Double.PositiveInfinity else distance)
@@ -600,6 +674,25 @@ class Lattice(
     def fastRank(concept: Node): (Double, Int, Long) =
       (incomingDistance(incomingDistanceCache, concept, instance), concept.size, concept.id)
 
+    // The target has one member: its forward coverage is already cached by
+    // generator search. Reuse that score during every duplicate check.
+    val equivalenceCache = mutable.LongMap.empty[Boolean]
+    lazy val incomingValues = numeric.BFloatTensors.toArray(instance.vector)
+    def singletonMayMatch(concept: Node): Boolean =
+      val possible = !indexedSearch || singletonCenters.get(concept.id).forall { center =>
+        SingletonBounds.mayClassify(center, incomingValues, concept.classificationRadius)
+      }
+      if !possible then equivalenceCache.put(concept.id, false)
+      possible
+
+    def equivalentToSingleton(concept: Node): Boolean =
+      equivalenceCache.getOrElseUpdate(concept.id,
+        incomingDistance(incomingDistanceCache, concept, instance) <= concept.classificationRadius &&
+          singletonCoversEnough(singletonTarget, concept) &&
+          (!config.requireMutualCommonClassification ||
+            (concept.classifies(singletonTarget.commonVector) &&
+              singletonTarget.classifies(concept.commonVector))))
+
     def boundedAncestorClosure(starts: Iterable[Node]): Set[Long] =
       val startNodes = starts.toArray
       cacheDistancesParallel(startNodes)
@@ -631,29 +724,28 @@ class Lattice(
       closure.toSet
 
     val searchedNodes = visited.iterator.flatMap(nodeMap.get).toArray
-    cacheDistancesParallel(searchedNodes)
-    val existingSingletons = nodeMap.valuesIterator
-      .filter(_.size == 1)
-      .toArray
-    cacheDistancesParallel(existingSingletons)
+    val existingSingletons =
+      if indexesReady then singletonIndex.valuesIterator.toArray
+      else nodeMap.valuesIterator.filter(_.size == 1).toArray
     val existingObject = existingSingletons
-      .filter(concept => concept.size == 1 && concept.containsSymbol(instance.symbol))
-      .sortBy(fastRank)
-      .headOption
+      .find(_.containsSymbol(instance.symbol))
       .orElse {
-        existingSingletons
+        val candidates = existingSingletons.filter(singletonMayMatch)
+        cacheDistancesParallel(candidates)
+        candidates
           .sortBy(fastRank)
-          .find(concept => equivalent(concept, singletonTarget))
+          .find(equivalentToSingleton)
       }
       .orElse {
         searchedNodes
           .sortBy(fastRank)
-          .find(concept => equivalent(concept, singletonTarget))
+          .find(equivalentToSingleton)
       }
 
-    val objectNode = existingObject.getOrElse(registerNode(singletonTarget))
-    val generator = compatible.sortBy(fastRank).headOption
-    val extentSeeds = (Seq(objectNode) ++ compatible.sortBy(fastRank))
+    val objectNode = existingObject.getOrElse(registerNode(singletonTarget, equivalentToSingleton))
+    val rankedCompatible = compatible.sortBy(fastRank)
+    val generator = rankedCompatible.headOption
+    val extentSeeds = (Seq(objectNode) ++ rankedCompatible)
       .foldLeft(Vector.empty[Node]) { (selected, candidate) =>
         if selected.exists(_.id == candidate.id) then selected else selected :+ candidate
       }
@@ -666,7 +758,9 @@ class Lattice(
 
     acceptedIds.foreach { conceptId =>
       nodeMap.get(conceptId).foreach { concept =>
-        if concept.addInstance(instance) then concept.refit()
+        if cva.config.noCVA then concept.addInstanceFast(instance)
+        else if concept.addInstance(instance) then
+          concept.refit()
       }
     }
     objectNode
@@ -804,18 +898,59 @@ class Lattice(
    * common vector. The two directional coverage scans make the result symmetric.
    */
   def equivalent(a: Node, b: Node): Boolean =
-    val coverageAB = coverage(a, b.instances)
-    val coverageBA = coverage(b, a.instances)
+    coversEnough(a, b) && coversEnough(b, a) &&
+      (!config.requireMutualCommonClassification ||
+        (a.classifies(b.commonVector) && b.classifies(a.commonVector)))
 
-    val extentCondition =
-      coverageAB >= config.equalityCoverage &&
-        coverageBA >= config.equalityCoverage
+  /** Stop once the coverage threshold is either reached or impossible.
+    * This preserves coverage semantics without scoring every extent member.
+    */
+  private def coversEnough(classifier: Node, extent: Node): Boolean =
+    val total = extent.size
+    var accepted = 0
+    var remaining = total
+    val instances = extent.instancesIterator
+    while instances.hasNext do
+      if classifier.classifies(instances.next()) then accepted += 1
+      remaining -= 1
+      if accepted.toDouble / total >= config.equalityCoverage then return true
+      if (accepted + remaining).toDouble / total < config.equalityCoverage then return false
+    total == 0
 
-    val commonCondition =
-      if !config.requireMutualCommonClassification then true
-      else a.classifies(b.commonVector) && b.classifies(a.commonVector)
-
-    extentCondition && commonCondition
+  /** Score singleton coverage in bounded tensor batches. Each row retains the
+    * same BFloat16 residual and reduction as the scalar distance calculation.
+    * Only decoded sums escape the native pointer scope.
+    */
+  private[cvafca] def singletonCoversEnough(singleton: Node, extent: Node): Boolean =
+    require(singleton.size == 1)
+    if extent.size < 16 then return coversEnough(singleton, extent)
+    val total = extent.size
+    val instances = extent.instancesIterator
+    var accepted = 0
+    var remaining = total
+    while instances.hasNext do
+      val batch = instances.take(64).map(_.vector).toVector
+      val squaredDistances = Using.resource(new PointerScope()) { _ =>
+        val vectors = torch.stack(batch.map(_.flatten))
+        val projected =
+          if cva.config.noCVA then vectors
+          else singleton.projection.matmul(vectors.transpose(0, 1)).transpose(0, 1)
+        val residual = projected - singleton.commonVector.flatten
+        val squared = (residual * residual).native.sum(
+          Array(1L), false,
+          new org.bytedeco.pytorch.ScalarTypeOptional(
+            org.bytedeco.pytorch.global.torch.ScalarType.BFloat16))
+        numeric.BFloatTensors.toArray(Tensor.fromNative[BFloat16](squared))
+      }
+      squaredDistances.foreach { squared =>
+        val euclidean = math.sqrt(squared.toDouble)
+        val distance = if euclidean.isPosInfinity then 1.0 else euclidean / (1.0 + euclidean)
+        if distance <= singleton.classificationRadius then accepted += 1
+      }
+      remaining -= batch.size
+      if accepted.toDouble / total >= config.equalityCoverage then return true
+      if (accepted + remaining).toDouble / total < config.equalityCoverage then return false
+    total == 0
 
   /**
    * Returns the fraction of `xs` classified by `classifier` in one pass.
@@ -992,6 +1127,9 @@ class Lattice(
               Instance(symbol, vector)
             }
             val loaded = new Node(id, instances, cva, restoredModel = restoredModel)
+            loaded.identityProjectionKnown = restoredModel.isEmpty || restoredModel.exists { model =>
+              identityProjection.exists(_ eq model.projection)
+            }
             // Finish the whole record before publishing it. If EOF occurs here,
             // no partially read node is retained.
             val parents = Array.fill(readCount(input, "parent count"))(input.readLong())
@@ -1028,6 +1166,8 @@ class Lattice(
       if storedNextId < minimumNextId then
         throw new IllegalArgumentException(s"Invalid next node ID in lattice file: $storedNextId")
 
+      invalidateExtentIndexes()
+      nodeMap.valuesIterator.foreach(_.clearBasisCache())
       nodeMap.clear()
       nodeMap.addAll(loadedNodes)
       rebuildBottomNodeIndex()

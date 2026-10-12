@@ -16,8 +16,8 @@ import java.io.File
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 10
-  val parallelSize = 10
+  val batchSize = 48
+  val parallelSize = 1
   val cpuParallelism: Int = 24
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
@@ -45,6 +45,9 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
     nativeTorch.set_num_threads(cpuParallelism)
 
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
+    // Insert in input order. Lattice mutation is serialized; scoring owns the
+    // worker parallelism, so a native thread pool per score adds contention.
+    nativeTorch.set_num_threads(1)
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
     val lattice = new Lattice(CVA(dim, config))
@@ -61,13 +64,13 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
         parallelBatch.foreach(batch => {
           batch.foreach(embedding => {
-            lattice.addIntentFast(embedding)
+            lattice.addIntentFastIndexed(embedding)
           })
           //lattice.compute()
         })
         //lattice.save(binaryFilename)
         processed += parallelBatch.iterator.map(_.size.toLong).sum
-        //lattice.printRandomNodeSymbols()
+        lattice.printRandomNodeSymbols()
         val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
         val hours = elapsedSeconds / 3600
         val minutes = (elapsedSeconds % 3600) / 60
@@ -121,7 +124,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(20000, 300) {
+object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -129,8 +132,8 @@ object CVAWordTrainer extends CVAWordTrainer(20000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.30
-  val endDistance = 0.45
+  val startDistance = 0.70
+  val endDistance = 0.75
 
   def train(crrDistance:Double): Unit = {
     train(embeddingFilename,noCVA, crrDistance)

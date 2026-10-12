@@ -63,6 +63,16 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
 
     CvaModel(commonVector, projection, radius)
 
+  /** Same model/radius calculation as fit_cva, with append-only basis reuse. */
+  private[cvafca] def fit_cached(samples: Iterable[Tensor[BFloat16]], basis: CvaBasisCache): CvaModel =
+    val tensors = samples.toArray
+    tensors.foreach(validate)
+    val (projection, commonVector) = basis.compute(tensors)
+    val provisional = CvaModel(commonVector, projection, radius = 0.0)
+    val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
+    CvaModel(commonVector, projection, math.max(
+      config.classificationThreshold, maxTrainingResidual * config.trainingRadiusScale))
+
   def fit_avg(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     val tensors = samples.toArray
     require(tensors.nonEmpty, "CVA.fit requires at least one sample")

@@ -23,6 +23,10 @@ final class Node private[cvafca] (
 ):
 
   private val extent = mutable.LinkedHashMap.empty[String, Instance]
+  private var extentSymbols = Set.empty[String]
+  private[cvafca] var extentChanged = Option.empty[() => Unit]
+  private var basisCache = Option.empty[CvaBasisCache]
+  private[cvafca] var identityProjectionKnown = restoredModel.isEmpty
   initialInstances.iterator.foreach(addWithoutRefit)
   require(extent.nonEmpty, "A node must contain at least one instance")
 
@@ -51,7 +55,7 @@ final class Node private[cvafca] (
   def instancesIterator: Iterator[Instance] = extent.valuesIterator
 
   /** Symbolic extent. */
-  def symbols: Set[String] = extent.keySet.toSet
+  def symbols: Set[String] = extentSymbols
 
   def containsSymbol(symbol: String): Boolean = extent.contains(symbol)
 
@@ -80,6 +84,7 @@ final class Node private[cvafca] (
   def addInstanceFast(instance: Instance): Boolean =
     if extent.contains(instance.symbol) then false
     else
+      clearBasisCache()
       addWithoutRefit(instance)
       currentModel = cva.update(currentModel, instance.vector, extent.size)
       true
@@ -99,9 +104,29 @@ final class Node private[cvafca] (
 
   private def addWithoutRefit(instance: Instance): Unit =
     extent.put(instance.symbol, instance)
+    extentSymbols += instance.symbol
+    extentChanged.foreach(_.apply())
 
+  private[cvafca] def clearBasisCache(): Unit =
+    basisCache.foreach(_.close())
+    basisCache = None
+
+  /** Refresh the complete extent through the configured CVA.update path. */
   def refit(): Unit =
+    clearBasisCache()
     currentModel = cva.update(extent.valuesIterator.map(_.vector).toVector)
+    if size == 1 then
+      identityProjectionKnown = true
+      extentChanged.foreach(_.apply())
+
+  /** Extends the original Gram-Schmidt computation without quantized projector updates. */
+  private[cvafca] def refitCached(): Unit =
+    val cache = basisCache.getOrElse {
+      val created = new CvaBasisCache
+      basisCache = Some(created)
+      created
+    }
+    currentModel = cva.fit_cached(extent.valuesIterator.map(_.vector).toVector, cache)
 
   override def toString: String =
     val cv = numeric.BFloatTensors.toArray(commonVector).map(v => f"$v%.4f").mkString("[", ", ", "]")
