@@ -132,8 +132,8 @@ object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.70
-  val endDistance = 0.75
+  val startDistance = 0.75
+  val endDistance = 0.80
 
   def train(crrDistance:Double): Unit = {
     train(embeddingFilename,noCVA, crrDistance)
@@ -141,14 +141,15 @@ object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
 
   def incremental(startDistance:Double, endDistance:Double): Unit = {
     var crrDistance = startDistance
+
     while(crrDistance < endDistance){
       train(crrDistance)
-      crrDistance += 0.05
+      crrDistance += 0.01
     }
+
   }
 
   def main(args: Array[String]): Unit = {
     incremental(startDistance, endDistance)
   }
-
 }

@@ -65,11 +65,11 @@ class Lattice(
   private val maxSearchVisits = 400
   private val maxBottomSamples = 500000
   private val maxBottomStarts = 256
-  private val maxChildrenPerGenerator = 8
-  private val fastBottomSamples = 96
-  private val fastBottomStarts = 88
-  private val fastSearchVisits = 128
-  private val fastAncestorRefits = 48
+  private val maxChildrenPerGenerator = 16
+  private val fastBottomSamples = 1024
+  private val fastBottomStarts = 512
+  private val fastSearchVisits = 1024
+  private val fastAncestorRefits = 96
 
   private final case class FastSearchLimits(
                                               bottomSamples: Int,
@@ -86,10 +86,10 @@ class Lattice(
     def scaled(maximum: Int, minimum: Int): Int =
       math.max(minimum, math.round(maximum * scale).toInt)
     FastSearchLimits(
-      bottomSamples = scaled(fastBottomSamples, 8),
-      bottomStarts = scaled(fastBottomStarts, 2),
-      searchVisits = scaled(fastSearchVisits, 32),
-      ancestorRefits = scaled(fastAncestorRefits, 1)
+      bottomSamples = scaled(fastBottomSamples, 1024),
+      bottomStarts = scaled(fastBottomStarts, 512),
+      searchVisits = scaled(fastSearchVisits, 1024),
+      ancestorRefits = scaled(fastAncestorRefits, 96)
     )
 
   private val nextId = new AtomicLong(0L)
@@ -873,7 +873,7 @@ class Lattice(
    */
   def printRandomNodeSymbols(
                               nodeCount: Int = 3,
-                              symbolsPerNode: Int = 2,
+                              symbolsPerNode: Int = 5,
                               random: Random = Random
                             ): Unit = {
 
