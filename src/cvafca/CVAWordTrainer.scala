@@ -15,15 +15,15 @@ import java.io.File
 
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
-class CVAWordTrainer(val limit: Int, val dim: Int) {
-  val batchSize = 48
+class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
+  val batchSize = 12
   val parallelSize = 1
   val cpuParallelism: Int = 24
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
   val contextVocabulary = Evaluate.readExtrinsic()
     .flatMap(sample => tokenizer.tokenize(sample.sentence)).toSet
-  val cvaDataset = new CVADataset(batchSize, limit, contextVocabulary)
+  val cvaDataset = new CVADataset(batchSize,start, limit, contextVocabulary)
   val binaryFilename = "resources/binary/"
 
 
@@ -79,6 +79,8 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
           f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
             f"Nodes: ${lattice.size}%,d"
         )
+
+        System.gc()
       })
 
     Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
@@ -124,7 +126,7 @@ class CVAWordTrainer(val limit: Int, val dim: Int) {
 }
 
 
-object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
+class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
@@ -132,11 +134,12 @@ object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.75
+  val startDistance = 0.78
   val endDistance = 0.80
 
   def train(crrDistance:Double): Unit = {
-    train(embeddingFilename,noCVA, crrDistance)
+    val trainer = new CVAWordTrainer(start, limit, dim)
+    trainer.train(embeddingFilename,noCVA, crrDistance)
   }
 
   def incremental(startDistance:Double, endDistance:Double): Unit = {
@@ -149,7 +152,16 @@ object CVAWordTrainer extends CVAWordTrainer(2000000, 300) {
 
   }
 
-  def main(args: Array[String]): Unit = {
+  def train(): Unit = {
     incremental(startDistance, endDistance)
+  }
+}
+
+
+object CVAWordMain {
+  def main(args: Array[String]): Unit = {
+    for (i<-0 until 260000 by 5000){
+      new CVAWordIncremental(i, 50000).train()
+    }
   }
 }

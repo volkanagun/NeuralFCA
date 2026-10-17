@@ -19,7 +19,7 @@ final class Tokenizer {
   }
 }
 
-class CVADataset(val size: Int = 1, val limit:Int = 1000000, val targetVocab:Set[String] = Set()) {
+class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000, val targetVocab: Set[String] = Set()) {
   require(size > 0, "Batch size must be greater than zero")
 
   private final class CountingInputStream(input: InputStream) extends FilterInputStream(input) {
@@ -106,9 +106,11 @@ class CVADataset(val size: Int = 1, val limit:Int = 1000000, val targetVocab:Set
     val source = Source.fromFile(filename, "UTF-8")
 
     try
-      source.getLines().zipWithIndex.map { case (line, index) =>
+      source.getLines().zipWithIndex.filter { case (line, index) => index >= start }
+        .map { case (line, index) =>
         val embedding = parseEmbedding(line, index.toLong + 1, device)
         embedding.symbol -> embedding.vector
+
       }.toMap
     finally
       source.close()
@@ -134,10 +136,10 @@ class CVADataset(val size: Int = 1, val limit:Int = 1000000, val targetVocab:Set
     val map = readEmbeddingMap(embeddingFile, device)
     val dimensions = map.head._2.shape(0)
     Source.fromFile(filename).getLines().take(limit).sliding(size, size).flatMap(sentences => {
-      sentences.map(sentence=> tokenizer.tokenize(sentence))
-        .filter(tokens=> tokens.length >= windowSize && tokens.forall(token=> map.contains(token)))
-        .filter(tokens=> targetVocab.isEmpty || tokens.exists(token=> targetVocab.contains(token)))
-        .map(tokens=> {
+      sentences.map(sentence => tokenizer.tokenize(sentence))
+        .filter(tokens => tokens.length >= windowSize && tokens.forall(token => map.contains(token)))
+        .filter(tokens => targetVocab.isEmpty || tokens.exists(token => targetVocab.contains(token)))
+        .map(tokens => {
           tokens.sliding(windowSize, 1)
             .map(tokens => {
               val tokenIndex = (windowSize - 1)
@@ -153,7 +155,7 @@ class CVADataset(val size: Int = 1, val limit:Int = 1000000, val targetVocab:Set
     val tokenizer = new Tokenizer()
     val map = readEmbeddingMap(embeddingFile, device)
     val dimensions = map.head._2.shape(0)
-    map.toArray.sliding(size, size).map(tokens => tokens.map((token, embedding)=>{
+    map.toArray.sliding(size, size).map(tokens => tokens.map((token, embedding) => {
       Instance(token, embedding)
     }))
 
