@@ -16,7 +16,7 @@ import java.io.File
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
-  val batchSize = 12
+  val batchSize = 24
   val parallelSize = 1
   val cpuParallelism: Int = 24
   val device = torch.Device.CPU
@@ -70,7 +70,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
         })
         //lattice.save(binaryFilename)
         processed += parallelBatch.iterator.map(_.size.toLong).sum
-        lattice.printRandomNodeSymbols()
+        //lattice.printRandomNodeSymbols()
         val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
         val hours = elapsedSeconds / 3600
         val minutes = (elapsedSeconds % 3600) / 60
