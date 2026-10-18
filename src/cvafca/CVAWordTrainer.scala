@@ -64,13 +64,13 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
         parallelBatch.par.foreach(batch => {
           batch.foreach(embedding => {
-            lattice.addIntentFastIndexed(embedding)
+            lattice.addIntent(embedding)
           })
           //lattice.compute()
         })
         //lattice.save(binaryFilename)
         processed += parallelBatch.iterator.map(_.size.toLong).sum
-        lattice.printRandomNodeSymbols()
+        //lattice.printRandomNodeSymbols()
         val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
         val hours = elapsedSeconds / 3600
         val minutes = (elapsedSeconds % 3600) / 60
@@ -105,7 +105,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
         parallelBatch.toArray.foreach(batch => {
           parallelForeach(batch.toArray, taskSupport)(embedding => {
-            lattice.addIntent(embedding)
+            lattice.original(embedding)
           })
         })
         //lattice.save(binaryFilename)

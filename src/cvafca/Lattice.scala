@@ -18,10 +18,10 @@ import scala.collection.parallel.ForkJoinTaskSupport
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
-                                equalityCoverage: Double = 0.85,
+                                equalityCoverage: Double = 0.95,
 
                                 /** If true, also require mutual common-vector classification. */
-                                requireMutualCommonClassification: Boolean = true,
+                                requireMutualCommonClassification: Boolean = false,
 
                                 /** Fast-search budgets stay at their maximum through this node count. */
                                 fastBudgetReferenceNodes: Int = 1024,
@@ -30,7 +30,7 @@ final case class LatticeConfig(
                                 fastMinimumBudgetScale: Double = 0.125,
 
                                 /** Maximum concepts retaining append-only CVA bases; zero forces full refits. */
-                                fastBasisCacheNodes: Int = 64
+                                fastBasisCacheNodes: Int = 32
                               )
 
 /**
@@ -39,13 +39,13 @@ final case class LatticeConfig(
  * Semantics
  * ---------
  * 1. node.classifies(x) is the subset/membership test.
- * 2. Two nodes are equivalent when their CVA models mutually classify the
- *    other's extent (up to equalityCoverage), optionally also their common vectors.
+ * 2. Bounded insertion compares intents using mutual extent coverage, optionally
+ *    also their common vectors. `original` requires full mutual classification.
  * 3. Intersection(a,b) is a new CVA model fitted to extent(a) U extent(b).
  * 4. Adding an instance to an existing node refits its common vector and projection.
- * 5. Symbolic extent inclusion is used ONLY to impose a true partial order for
- *    lattice edges. Learned classifier inclusion can be non-transitive, so using
- *    it alone for topology can create cycles.
+ * 5. Bounded insertion methods use symbolic extent inclusion to order edges.
+ *    `original` instead uses CVA membership throughout AddIntent and guards links
+ *    against graph cycles, since learned inclusion can be non-transitive.
  *
  * This is therefore an approximate / learned FCA, not a mathematically exact
  * formal concept lattice unless the learned operators happen to satisfy closure,
@@ -622,6 +622,121 @@ class Lattice(
    */
   def addIntent(instance: Instance): Node = this.synchronized {
     addIntentUnsafe(instance)
+  }
+
+  /** Original AddIntent traversal with learned intent operations.
+    *
+    * Follows van der Merwe, Obiedkov and Kourie (2004), section 3:
+    * https://www.researchgate.net/publication/225177947
+    * Intent inclusion means that the left CVA classifies every member of the
+    * right extent; equality is mutual inclusion. Intersections fit a CVA to the
+    * two extents' union. No symbolic inclusion, coverage tolerance, coherence
+    * filter, or search/depth budget participates in these decisions.
+    *
+    * None represents the paper's empty-extent bottom, whose parents are all
+    * childless materialized nodes. It is virtual because Node requires samples.
+    * Models remain fixed during traversal; extent propagation and full refits
+    * follow insertion. CVA membership need not obey formal closure laws, so the
+    * resulting learned graph is still an approximation of a formal lattice.
+    */
+  def original(instance: Instance): Node = this.synchronized {
+    def store(concept: Node): Node =
+      nodeMap.put(concept.id, concept)
+      if indexesReady then indexNode(concept)
+      bottomNodeIds += concept.id
+      concept
+
+    if nodeMap.isEmpty then
+      return store(createNode(List(instance), doAverage = false))
+
+    val inclusion = mutable.HashMap.empty[(Long, Long), Boolean]
+    val created = mutable.ArrayBuffer.empty[Node]
+
+    def included(left: Node, right: Node): Boolean =
+      inclusion.getOrElseUpdate((left.id, right.id),
+        right.instancesIterator.forall(left.classifies))
+
+    def parentsOf(concept: Option[Node]): Vector[Node] = concept match
+      case Some(node) => node.parents.iterator.map(nodeMap).toVector
+      case None => nodeMap.valuesIterator.filter(_.children.isEmpty).toVector
+
+    def getMaximalConcept(intent: Node, start: Option[Node]): Option[Node] =
+      var generator = start
+      var parent = parentsOf(generator).find(included(intent, _))
+      while parent.nonEmpty do
+        generator = parent
+        parent = parentsOf(generator).find(included(intent, _))
+      generator
+
+    def connect(parent: Node, child: Node): Unit =
+      // Learned inclusion is not necessarily transitive. Graph reachability,
+      // rather than symbol sets, prevents a numerical inconsistency making a cycle.
+      if parent.id != child.id && !ancestorClosure(parent).contains(child.id) then
+        linkFast(parent, child)
+
+    def insert(intent: Node, start: Option[Node]): Node =
+      val generator = getMaximalConcept(intent, start)
+      generator match
+        case Some(existing) if included(existing, intent) && included(intent, existing) => existing
+        case _ =>
+          // Snapshot before recursion, which can replace these parent links.
+          val generatorParents = parentsOf(generator)
+          var newParents = Vector.empty[Node]
+          generatorParents.foreach { oldParent =>
+            val candidate =
+              if included(oldParent, intent) then oldParent
+              else
+                val intersection = createNode(oldParent.instances ++ intent.instances, doAverage = false)
+                insert(intersection, Some(oldParent))
+
+            var addCandidate = true
+            val iterator = newParents.iterator
+            while iterator.hasNext && addCandidate do
+              val parent = iterator.next()
+              if included(candidate, parent) then addCandidate = false
+              else if included(parent, candidate) then
+                newParents = newParents.filterNot(_.id == parent.id)
+            if addCandidate then newParents :+= candidate
+          }
+
+          // Copy the generator's extent while retaining the requested intent.
+          // Target samples also stand in for the incoming object's intent and
+          // keep virtual-bottom insertions nonempty. Refit only after traversal.
+          val extent = generator.fold(intent.instances)(_.instances ++ intent.instances)
+          val concept = store(new Node(nextId.getAndIncrement(), extent, cva,
+            restoredModel = Some(intent.model)))
+          created += concept
+          newParents.foreach { parent =>
+            generator.foreach(unlink(parent, _))
+            connect(parent, concept)
+          }
+          generator.foreach(connect(concept, _))
+          concept
+
+    val objectNode = insert(createNode(List(instance), doAverage = false), None)
+
+    // Add the object to its complete ancestor closure. Also propagate copied
+    // generator extents: approximate CVA equality can reuse a parent whose
+    // recorded extent does not yet contain every descendant sample.
+    val changed = mutable.LinkedHashSet.from(created)
+    if objectNode.addInstance(instance) then changed += objectNode
+    val pending = mutable.ArrayDeque.from(created.iterator ++ Iterator(objectNode))
+    val queued = mutable.HashSet.from(pending.iterator.map(_.id))
+    while pending.nonEmpty do
+      val child = pending.removeHead()
+      queued -= child.id
+      val members = child.instances
+      child.parents.iterator.map(nodeMap).foreach { parent =>
+        var extended = false
+        members.foreach { member =>
+          if parent.addInstance(member) then extended = true
+        }
+        if extended then
+          changed += parent
+          if queued.add(parent.id) then pending.append(parent)
+      }
+    changed.foreach(_.refit())
+    objectNode
   }
 
   /** Faster bounded insertion for large training runs.
