@@ -80,7 +80,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
             f"Nodes: ${lattice.size}%,d"
         )
 
-        System.gc()
+        //System.gc()
       })
 
     Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
@@ -134,8 +134,8 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.78
-  val endDistance = 0.80
+  val startDistance = 0.80
+  val endDistance = 0.82
 
   def train(crrDistance:Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)
@@ -160,8 +160,9 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
 
 object CVAWordMain {
   def main(args: Array[String]): Unit = {
-    for (i<-0 until 260000 by 5000){
-      new CVAWordIncremental(i, 50000).train()
+    for (i<-10000 until 260000 by 2000){
+      new CVAWordIncremental(i, 2000).train()
+      System.gc()
     }
   }
 }
