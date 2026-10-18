@@ -29,7 +29,7 @@ final case class LatticeConfig(
                                 /** Lowest fraction of each fast-search budget used on large lattices. */
                                 fastMinimumBudgetScale: Double = 0.125,
 
-                                /** Retained for configuration compatibility; indexed insertion uses full CVA refits. */
+                                /** Maximum concepts retaining append-only CVA bases; zero forces full refits. */
                                 fastBasisCacheNodes: Int = 64
                               )
 
@@ -97,6 +97,24 @@ class Lattice(
   protected val nodeMap = mutable.LinkedHashMap.empty[Long, Node]
   /** Childless-node IDs with constant-time insertion/removal and bounded iteration. */
   private val bottomNodeIds = mutable.LinkedHashSet.empty[Long]
+  /** Per-lattice LRU; sample-dependent search scores are never retained here. */
+  private val fastBasisNodes = mutable.LinkedHashMap.empty[Long, Node]
+
+  private def refitFast(concept: Node): Unit =
+    if config.fastBasisCacheNodes == 0 then concept.refit()
+    else
+      fastBasisNodes.remove(concept.id)
+      while fastBasisNodes.size >= config.fastBasisCacheNodes do
+        val (id, evicted) = fastBasisNodes.head
+        fastBasisNodes.remove(id)
+        evicted.clearBasisCache()
+      fastBasisNodes.put(concept.id, concept)
+      try concept.refitCached()
+      catch
+        case error: Throwable =>
+          fastBasisNodes.remove(concept.id)
+          concept.clearBasisCache()
+          throw error
 
   // FastAddExtent-style exact lookup. Keys are immutable symbol snapshots;
   // tree keys preserve nodeMap order even when two mutable extents converge.
@@ -584,8 +602,9 @@ class Lattice(
     * full-extent coherence scans and recursive intersection construction. It
     * samples a small bottom frontier, links the singleton directly below the
     * most specific compatible generator, and updates a small ancestor closure.
-    * Average models use online means; CVA models retain full refits to avoid
-    * accumulating numerical drift in their BFloat16 projections.
+    * Average models use online means. CVA models reuse append-only bases with
+    * an unrounded Float32 projector and the same results as a complete refit.
+    * A bounded per-lattice LRU releases bases for concepts no longer in use.
     */
   def addIntentFast(instance: Instance): Node = this.synchronized {
     addIntentFastUnsafe(instance)
@@ -593,7 +612,7 @@ class Lattice(
 
   /** Same search, equivalence, extent updates and edges as addIntentFast.
     * Adds exact-extent indexes and per-insertion equivalence memoization.
-    * Changed CVA extents use Node.refit and the configured CVA.update path.
+    * Changed CVA extents use the same bounded basis reuse as addIntentFast.
     * Identity-projector singleton bounds reject only impossible matches; all
     * possible matches still use the original tensor scores and tie breaking.
     */
@@ -607,6 +626,8 @@ class Lattice(
       val first = createNode(List(instance))
       return registerNode(first)
 
+    // Scores depend on this incoming sample and the current models. Keep them
+    // local so neither later insertions nor other lattices can reuse them.
     val incomingDistanceCache = mutable.HashMap.empty[Long, Double]
     val singletonTarget = createNode(List(instance))
     val limits = fastSearchLimits(nodeMap.size)
@@ -760,7 +781,7 @@ class Lattice(
       nodeMap.get(conceptId).foreach { concept =>
         if cva.config.noCVA then concept.addInstanceFast(instance)
         else if concept.addInstance(instance) then
-          concept.refit()
+          refitFast(concept)
       }
     }
     objectNode
@@ -1168,6 +1189,7 @@ class Lattice(
 
       invalidateExtentIndexes()
       nodeMap.valuesIterator.foreach(_.clearBasisCache())
+      fastBasisNodes.clear()
       nodeMap.clear()
       nodeMap.addAll(loadedNodes)
       rebuildBottomNodeIndex()

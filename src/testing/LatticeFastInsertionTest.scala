@@ -39,6 +39,26 @@ object LatticeFastInsertionTest:
     assert(global.size == 20 && outside.id == isolated.last.id)
     assert(outside.symbols == Set("isolated19", "outside"))
 
+    // Interleaved insertions with the same node IDs and symbols must use fresh
+    // scores in both lattices, including when they share a CVA configuration.
+    for indexed <- Seq(false, true); noCVA <- Seq(false, true) do
+      val cva = new CVA(2, CvaConfig(0.01, 0.01, noCVA))
+      val left = new Lattice(cva)
+      val right = new Lattice(cva)
+      def insert(lattice: Lattice, sample: Instance): Node =
+        if indexed then lattice.addIntentFastIndexed(sample) else lattice.addIntentFast(sample)
+      for index <- 0 until 128 do
+        val value = (index % 2 * 10).toFloat
+        insert(left, Instance(s"sample$index", numeric.BFloatTensors(Seq(value, 0f))))
+        insert(right, Instance(s"sample$index", numeric.BFloatTensors(Seq(value + 100f, 0f))))
+      assert(left.size == 2 && right.size == 2)
+      assert(left.nodes.forall(_.size == 64) && right.nodes.forall(_.size == 64))
+      assert(left.node(0).commonVector.floatValues.sameElements(Array(0f, 0f)))
+      assert(right.node(0).commonVector.floatValues.sameElements(Array(100f, 0f)))
+      insert(left, Instance("left-only", numeric.BFloatTensors(Seq(0f, 0f))))
+      assert(left.node(0).size == 65 && right.node(0).size == 64)
+      assert(!right.nodes.exists(_.containsSymbol("left-only")))
+
     // Early coverage exits must agree with exhaustive scoring at fractional thresholds.
     for threshold <- Seq(0.25, 0.5, 0.75, 1.0); mutual <- Seq(false, true) do
       val lattice = new Lattice(new CVA(2, CvaConfig(0.2, 0.2, true)),

@@ -1,11 +1,47 @@
 package concept
 
 import numeric.BFloatTensors.*
+import org.bytedeco.javacpp.PointerScope
+import org.bytedeco.pytorch.global.torch as nativeTorch
 import torch.{BFloat16, Float32, Tensor}
 
 import scala.collection.mutable.ArrayBuffer
+import scala.util.Using
 
 object CVAUtil {
+
+  /** Two-pass Gram-Schmidt with reusable BFloat16 work buffers.
+    * Each multiply, reduction and subtraction keeps its original rounding;
+    * only the private residual is mutated. The caller owns the tensor scope.
+    */
+  def orthogonalResidual(
+      difference: Tensor[BFloat16],
+      basis: Iterable[Tensor[BFloat16]]
+  ): (Tensor[BFloat16], Double) = {
+    // PyTorch out operations do not support autograd. Keep the functional path
+    // for differentiable callers and avoid work buffers for an empty basis.
+    if (basis.isEmpty || difference.native.requires_grad() || basis.exists(_.native.requires_grad())) {
+      var residual = difference
+      for (_ <- 0 until 2; direction <- basis) {
+        val coefficient = (residual * direction).sum.scalar
+        residual = residual - direction * coefficient
+      }
+      return (residual, math.sqrt((residual * residual).sum.scalar.toDouble))
+    }
+    val residual = difference.clone()
+    val products = difference.clone()
+    val scaledDirection = difference.clone()
+    val coefficient = difference.sum
+    for (_ <- 0 until 2; direction <- basis) {
+      nativeTorch.mul_out(products.native, residual.native, direction.native)
+      nativeTorch.sum_out(coefficient.native, products.native)
+      nativeTorch.mul_out(scaledDirection.native, direction.native, coefficient.native)
+      residual.native.sub_(scaledDirection.native)
+    }
+    nativeTorch.mul_out(products.native, residual.native, residual.native)
+    nativeTorch.sum_out(coefficient.native, products.native)
+    (residual, math.sqrt(coefficient.scalar.toDouble))
+  }
   
   /** Returns an identity projection and the element-wise sample mean. */
   def compute_avg(tensors: Array[Tensor[BFloat16]]): (Tensor[BFloat16], Tensor[BFloat16]) = {
@@ -21,6 +57,14 @@ object CVAUtil {
   }
   
   def compute(
+      tensors: Array[Tensor[BFloat16]]
+  ): (Tensor[BFloat16], Tensor[BFloat16]) = numeric.BFloatTensors.scopedPair {
+    computeUnscoped(tensors)
+  }
+
+  // Only the fitted model escapes compute's scope. Gram-Schmidt creates many
+  // native temporaries, which must be released before the next insertion.
+  private def computeUnscoped(
       tensors: Array[Tensor[BFloat16]]
   ): (Tensor[BFloat16], Tensor[BFloat16]) = {
 
@@ -51,25 +95,32 @@ object CVAUtil {
     val basis = ArrayBuffer.empty[Tensor[BFloat16]]
 
     differences.foreach { difference =>
-      // Re-orthogonalising substantially improves stability for nearly
-      // linearly-dependent differences while retaining tensor/device locality.
-      var residual = difference
-      for (_ <- 0 until 2; direction <- basis) {
-        val coefficient = (residual * direction).sum.scalar
-        residual = residual - direction * coefficient
+      // Keep the direction in the outer scope; release the private residual
+      // and work buffers after each difference.
+      val retainedDirection = new org.bytedeco.pytorch.Tensor()
+      val accepted = Using.resource(new PointerScope()) { _ =>
+        // Re-orthogonalising improves stability for dependent differences.
+        val (residual, residualNorm) = orthogonalResidual(difference, basis)
+        if (residualNorm > rankTolerance) {
+          retainedDirection.put((residual / residualNorm.toFloat).native)
+          true
+        } else false
       }
-
-      val residualNorm = math.sqrt((residual * residual).sum.scalar.toDouble)
-      if (residualNorm > rankTolerance) {
-        basis += residual / residualNorm.toFloat
-      }
+      if (accepted) basis += Tensor.fromNative[BFloat16](retainedDirection)
     }
 
     // P projects onto the orthogonal complement of the difference subspace:
     // P = I - sum(q q^T), for the orthonormal directions q in basis.
-    val projectionMatrix = basis.foldLeft(identity) { (projection, direction) =>
-      val direction32 = direction.to(dtype = torch.float32)
-      projection.to(dtype = torch.float32) - direction32.unsqueeze(1).matmul(direction32.unsqueeze(0))
+    val retainedProjection = new org.bytedeco.pytorch.Tensor()
+    retainedProjection.put(identity.native)
+    val projectionMatrix = Tensor.fromNative[Float32](retainedProjection)
+    basis.foreach { direction =>
+      Using.resource(new PointerScope()) { _ =>
+        val direction32 = direction.to(dtype = torch.float32)
+        val updated = projectionMatrix.to(dtype = torch.float32) -
+          direction32.unsqueeze(1).matmul(direction32.unsqueeze(0))
+        retainedProjection.put(updated.native)
+      }
     }
     val commonVector = projectionMatrix.matmul(flatReference.to(torch.float32))
       .reshape(sampleShape *).to(torch.bfloat16)

@@ -1,6 +1,6 @@
 package testing
 
-import cvafca.{CVA, CvaConfig, Instance, Lattice}
+import cvafca.{CVA, CvaConfig, Instance, Lattice, LatticeConfig}
 import numeric.BFloatTensors.*
 import scala.io.Source
 import scala.util.Using
@@ -29,7 +29,8 @@ object LatticeIndexedInsertionBenchmark:
     for (label, samples) <- Seq("embeddings" -> words, "growing-cluster" -> cluster) do
       val dimension = samples.head.vector.numel.toInt
       def run(indexed: Boolean, inputs: Vector[Instance]): (Double, Lattice) =
-        val lattice = new Lattice(new CVA(dimension, CvaConfig(0.3, 0.3)))
+        val lattice = new Lattice(new CVA(dimension, CvaConfig(0.3, 0.3)),
+          LatticeConfig(fastBasisCacheNodes = if indexed then 64 else 0))
         val start = System.nanoTime()
         inputs.foreach { sample =>
           if indexed then lattice.addIntentFastIndexed(sample) else lattice.addIntentFast(sample)

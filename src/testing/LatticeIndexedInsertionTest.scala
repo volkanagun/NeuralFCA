@@ -36,7 +36,8 @@ object LatticeIndexedInsertionTest:
     for noCVA <- Seq(false, true); coverage <- Seq(0.75, 0.95, 1.0); mutual <- Seq(false, true) do
       val config = LatticeConfig(equalityCoverage = coverage,
         requireMutualCommonClassification = mutual, fastBasisCacheNodes = 2)
-      val reference = new Lattice(new CVA(8, CvaConfig(0.2, 0.2, noCVA)), config)
+      val reference = new Lattice(new CVA(8, CvaConfig(0.2, 0.2, noCVA)),
+        config.copy(fastBasisCacheNodes = 0))
       val indexed = new Lattice(new CVA(8, CvaConfig(0.2, 0.2, noCVA)), config)
       (samples ++ samples.take(4)).foreach { sample =>
         val expected = reference.addIntentFast(sample)
@@ -82,6 +83,49 @@ object LatticeIndexedInsertionTest:
       assert(Pointer.totalCount() <= stableCount, "Basis cache accumulated native temporaries")
     finally basis.close()
     assert(Pointer.totalCount() <= countBefore, "Basis cache failed to release retained tensors")
+
+    // Scale growth invalidates a suffix after a still-valid first direction.
+    val suffixBasis = new CvaBasisCache
+    val suffixSamples = Seq(Seq(0f, 0f), Seq(1f, 0f), Seq(0f, 0.000001f),
+      Seq(0f, 1000f), Seq(1f, 1000f)).map(numeric.BFloatTensors(_))
+    try
+      for size <- 1 to suffixSamples.size do
+        Using.resource(new PointerScope()) { _ =>
+          val expected = cva.fit_cva(suffixSamples.take(size))
+          val actual = cva.fit_cached(suffixSamples.take(size), suffixBasis)
+          assert(expected.projection.floatValues.sameElements(actual.projection.floatValues))
+          assert(expected.commonVector.floatValues.sameElements(actual.commonVector.floatValues))
+          assert(expected.radius == actual.radius)
+        }
+    finally suffixBasis.close()
+
+    // Eviction must bound native basis ownership; replacing the lattice must
+    // release every retained basis without affecting models in other lattices.
+    val emptyCheckpoint = Files.createTempFile("empty-basis-cache-", ".bin")
+    try
+      new Lattice(new CVA(16)).save(emptyCheckpoint.toString)
+      for cacheLimit <- Seq(1, 2) do
+        val before = Pointer.totalCount()
+        val cached = new Lattice(new CVA(16, CvaConfig(0.3, 0.3)),
+          LatticeConfig(fastBasisCacheNodes = cacheLimit))
+        Using.resource(new PointerScope()) { _ =>
+          val reference = new Lattice(new CVA(16, CvaConfig(0.3, 0.3)),
+            LatticeConfig(fastBasisCacheNodes = 0))
+          for cluster <- 0 until 4; index <- 0 until 12 do
+            val sample = Instance(s"cluster-$cluster-$index", numeric.BFloatTensors(
+              (0 until 16).map(dimension => cluster * 10f +
+                (if dimension == index then 0.03125f else 0f))))
+            reference.addIntentFast(sample)
+            cached.addIntentFastIndexed(sample)
+            sameLattice(reference, cached)
+        }
+        // Each retained concept has at most 11 directions and one projector.
+        assert(Pointer.totalCount() - before <= cacheLimit * 12,
+          "Evicted concepts retained native basis tensors")
+        cached.load(emptyCheckpoint.toString)
+        assert(cached.size == 0 && Pointer.totalCount() <= before,
+          "Replacing the lattice failed to release its basis cache")
+    finally Files.deleteIfExists(emptyCheckpoint)
 
     // The singleton bound must retain actual matches, including threshold ties.
     for dimension <- Seq(1, 17, 300); noCVA <- Seq(false, true) do

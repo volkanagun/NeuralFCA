@@ -15,9 +15,19 @@ The indexing optimization adapts this research idea:
   one insertion. Extent mutations update the indexes, which are rebuilt after
   checkpoint loading. The global learned-intent duplicate check still runs.
 
-Whenever an accepted CVA node gains a new extent member, indexed insertion calls
-`Node.refit() -> CVA.update(samples) -> CVA.update_cva(samples) -> CVA.fit_cva(samples)`.
-The common vector, projection, and radius are recomputed from the complete extent.
+Whenever an accepted CVA node gains a new extent member, both fast insertion
+methods reuse its append-only Gram-Schmidt basis and unrounded Float32 projector.
+The operation order, rank tolerance, common vector, projection, and radius match a
+complete fit. If the tolerance invalidates a saved direction, the unchanged basis
+prefix is retained and the affected suffix is replayed. The prefix projector is
+rebuilt in its original subtraction order to preserve rounding. The radius still
+checks the complete extent.
+
+Gram-Schmidt uses private BFloat16 work buffers for each difference, avoiding
+native tensor allocation for every multiply, sum, and subtraction. The individual
+operations retain their original rounding. Differentiable callers keep the
+functional tensor path because PyTorch out operations do not support autograd.
+
 Average models (`noCVA = true`) retain the configured online mean update path.
 As with the lattice's shared tensors, sample vectors and model tensors are treated
 as read-only. After externally changing sample vectors, call `Node.refit()` before
@@ -35,29 +45,33 @@ pruning proofs in the FCA papers do not directly apply. This method preserves
 the repository's bounded, approximate CVA-FCA semantics; it does not change the
 engine into an exhaustive formal concept lattice constructor.
 
-`LatticeConfig.fastBasisCacheNodes` is retained for configuration compatibility;
-indexed insertion now always performs full CVA refits. The standalone basis-cache
-implementation remains available for explicit cached fitting. Singleton bounds
-retain decoded Float32 centers, which are not written to the checkpoint format.
+`LatticeConfig.fastBasisCacheNodes` bounds a per-lattice LRU of saved bases
+(default 64). Eviction releases native basis tensors; zero disables basis reuse
+and calls `Node.refit() -> CVA.update(samples)` for every changed CVA extent.
+Loading a checkpoint releases the old bases; clones and loaded lattices start
+with fresh basis caches. Search distances and equivalence results remain local
+to each incoming sample. Singleton bounds retain decoded Float32 centers.
+Neither bases nor singleton centers are written to the checkpoint format.
 
 Run `cvafca.LatticeIndexedInsertionTest` for comparisons after each insertion:
 node IDs, extents, edges, common vectors, projections and radii must match the
 existing fast method. The checks also cover fractional/mutual equivalence,
-standalone cache rank-tolerance fallback, checkpoint/clone continuation, direct
-extent mutations, bound threshold ties, and native-pointer lifetime.
+standalone cache rank-tolerance fallback and suffix replay, bounded cache eviction,
+checkpoint/clone continuation, direct extent mutations, bound threshold ties,
+and native-pointer lifetime. The reference lattice disables basis reuse.
 
 Run `testing.LatticeIndexedInsertionBenchmark [embedding-file] [sample-count]`
 for a reproducible comparison. It warms both engines, alternates their order,
 reports medians of three runs, and asserts identical final models and topology.
+The reference fast method disables basis reuse; the indexed method enables it.
 Reading embeddings and comparing results are excluded from the timing.
 
-Earlier local CPU results with CVA enabled, classification threshold 0.3, and
-cached CVA refits (these timings do not describe the current full-refit path):
-
-| Input | Existing fast method | Indexed method | Speedup |
-| --- | ---: | ---: | ---: |
-| First 192 embeddings, 300 dimensions | 1107.7 ms | 292.5 ms | 3.79× |
-| Growing 64-member cluster, 64 dimensions | 1840.7 ms | 169.4 ms | 10.87× |
-
-These measure small insertion workloads; full-corpus speed depends on the
-number and size of nodes and the frequency of cache eviction or rank fallback.
+A local reproduction extracted a 593-member, 300-dimensional concept from an
+existing checkpoint and appended 24 new symbols using its first 24 vectors.
+After the initial native-memory cleanup, full refits took 131.5 seconds. Basis
+reuse, suffix replay, and work buffers reduced the same workload to 7.5 seconds,
+including the initial basis rebuild. Common vectors, projections, radii, and
+node counts matched bit for bit after every insertion. This isolated measurement
+excludes loading and does not measure searches across the full checkpoint.
+Full-corpus speed depends on concept sizes, search costs, cache eviction, and
+how much of a basis must be replayed when the rank tolerance changes.
