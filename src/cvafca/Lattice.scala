@@ -18,10 +18,10 @@ import scala.collection.parallel.ForkJoinTaskSupport
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
-                                equalityCoverage: Double = 0.95,
+                                equalityCoverage: Double = 0.85,
 
                                 /** If true, also require mutual common-vector classification. */
-                                requireMutualCommonClassification: Boolean = false,
+                                requireMutualCommonClassification: Boolean = true,
 
                                 /** Fast-search budgets stay at their maximum through this node count. */
                                 fastBudgetReferenceNodes: Int = 1024,
@@ -61,21 +61,22 @@ class Lattice(
   require(config.fastBudgetReferenceNodes > 0)
   require(config.fastMinimumBudgetScale > 0.0 && config.fastMinimumBudgetScale <= 1.0)
   require(config.fastBasisCacheNodes >= 0)
-  private val maxRecursionDepth = 7
-  private val maxSearchVisits = 400
-  private val maxBottomSamples = 500000
-  private val maxBottomStarts = 256
-  private val maxChildrenPerGenerator = 16
-  private val fastBottomSamples = 1024
-  private val fastBottomStarts = 512
-  private val fastSearchVisits = 1024
-  private val fastAncestorRefits = 96
+  // Bound candidate discovery; required extent propagation remains complete.
+  private val maxRecursionDepth = 4
+  private val maxSearchVisits = 256
+  private val maxBottomSamples = 2048
+  private val maxBottomStarts = 128
+  private val maxChildrenPerGenerator = 8
+  private val fastBottomSamples = 512
+  private val fastBottomStarts = 64
+  private val fastSearchVisits = 192
+  private val fastAncestorStarts = 24
 
   private final case class FastSearchLimits(
                                               bottomSamples: Int,
                                               bottomStarts: Int,
                                               searchVisits: Int,
-                                              ancestorRefits: Int
+                                              ancestorStarts: Int
                                             )
 
   private def fastSearchLimits(nodeCount: Int): FastSearchLimits =
@@ -84,12 +85,13 @@ class Lattice(
     )
     val scale = math.max(config.fastMinimumBudgetScale, math.min(1.0, sizeScale))
     def scaled(maximum: Int, minimum: Int): Int =
-      math.max(minimum, math.round(maximum * scale).toInt)
+      // A floor must never override a deliberately lowered maximum.
+      math.min(maximum, math.max(minimum, math.round(maximum * scale).toInt))
     FastSearchLimits(
-      bottomSamples = scaled(fastBottomSamples, 1024),
-      bottomStarts = scaled(fastBottomStarts, 512),
-      searchVisits = scaled(fastSearchVisits, 1024),
-      ancestorRefits = scaled(fastAncestorRefits, 96)
+      bottomSamples = scaled(fastBottomSamples, 128),
+      bottomStarts = scaled(fastBottomStarts, 16),
+      searchVisits = scaled(fastSearchVisits, 48),
+      ancestorStarts = scaled(fastAncestorStarts, 8)
     )
 
   private val nextId = new AtomicLong(0L)
@@ -164,21 +166,22 @@ class Lattice(
       nodeMap.valuesIterator.foreach(indexNode)
       indexesReady = true
 
-  /** Reuse exact extents first, then mutually equivalent learned intents.
-    * Search the whole lattice so bounded generator searches cannot create duplicates.
+  /** Reuse exact extents first, then learned intents satisfying the caller's predicate.
+    * Look beyond the bounded generator search when checking existing nodes.
     * Models remain unchanged until the insertion's final extent updates.
     */
   private def registerNode(node: Node): Node =
     registerNode(node, existing => equivalent(existing, node))
 
-  private def registerNode(node: Node, sameIntent: Node => Boolean): Node =
+  private def exactExtent(symbols: Set[String]): Option[Node] =
     if indexesReady && indexedNodes.size != nodeMap.size then ensureExtentIndexes()
+    if indexesReady then extentIndex.get(symbols).flatMap(_.headOption.map(_._2))
+    else nodeMap.valuesIterator.find(existing =>
+      existing.size == symbols.size && symbols.forall(existing.containsSymbol))
+
+  private def registerNode(node: Node, sameIntent: Node => Boolean): Node =
     val symbols = node.symbols
-    val sameExtent =
-      if indexesReady then extentIndex.get(symbols).flatMap(_.headOption.map(_._2))
-      else nodeMap.valuesIterator.find(existing =>
-        existing.size == symbols.size && symbols.forall(existing.containsSymbol))
-    sameExtent
+    exactExtent(symbols)
       .orElse(nodeMap.valuesIterator.find(sameIntent))
       .getOrElse {
         nodeMap.put(node.id, node)
@@ -548,17 +551,41 @@ class Lattice(
       child.parents += parent.id
       bottomNodeIds -= parent.id
 
+  /** Inserts a cover relation, moving bypassed links through intermediate nodes. */
+  private def linkFastCover(acceptedIds: Set[Long], parent: Node, child: Node, instance: Instance): Unit =
+    val pending = mutable.ArrayDeque((parent, child))
+    val processed = mutable.HashSet.empty[(Long, Long)]
+    while pending.nonEmpty do
+      val (upper, lower) = pending.removeLast()
+      if processed.add((upper.id, lower.id)) && locallyMoreGeneral(acceptedIds, upper, lower, instance) then
+        val children = upper.children.iterator.flatMap(nodeMap.get).toVector
+        children.find(middle => locallyMoreGeneral(acceptedIds, middle, lower, instance)) match
+          case Some(middle) =>
+            unlink(upper, lower)
+            pending.append((middle, lower))
+          case None =>
+            val parents = lower.parents.iterator.flatMap(nodeMap.get).toVector
+            linkFast(upper, lower)
+            parents.filter(locallyMoreGeneral(acceptedIds, _, upper, instance)).foreach { ancestor =>
+              unlink(ancestor, lower)
+              pending.append((ancestor, upper))
+            }
+            children.filter(locallyMoreGeneral(acceptedIds, lower, _, instance)).foreach { descendant =>
+              unlink(upper, descendant)
+              pending.append((lower, descendant))
+            }
+
 
   /**
-   * Collects `start` and a bounded set of its ancestors by following parent IDs.
-   * The deque provides depth-first-like traversal, the hash set prevents repeated
-   * visits/cycles, and `maxSearchVisits` bounds the closure. Returned IDs identify
-   * the existing concepts that will receive and refit for the incoming instance.
+   * Collects `start` and all its ancestors by following parent IDs.
+   * The deque provides depth-first-like traversal and the hash set prevents
+   * repeated visits/cycles. Search budgets must not truncate extent propagation:
+   * every parent of a growing concept must receive the incoming instance.
    */
   def ancestorClosure(start: Node): Set[Long] =
     val pending = mutable.ArrayDeque(start)
     val closure = mutable.HashSet.empty[Long]
-    while pending.nonEmpty && closure.size < maxSearchVisits do
+    while pending.nonEmpty do
       val concept = pending.removeLast()
       if closure.add(concept.id) then
         concept.parents.iterator.flatMap(nodeMap.get).foreach(pending.append)
@@ -581,7 +608,7 @@ class Lattice(
    *      caches plus a recursion guard.
    *   3. Sample bottom nodes, sort by incoming distance, and retain the closest
    *      bounded frontier.
-   *   4. Find a generator and collect its bounded ancestor closure as accepted.
+   *   4. Find a generator and collect its complete ancestor closure as accepted.
    *   5. If no generator exists, build a root/incoming union concept to provide a
    *      usable learned root, then retry generator search.
    *   6. Insert the singleton through `addIntentRecursively` and update local edges.
@@ -589,8 +616,9 @@ class Lattice(
    *      refit their models. Delaying this keeps all ID-keyed caches valid.
    *
    * Returns the existing or newly materialized node representing the singleton
-   * target. Because every search bound is fixed, this favors predictable local
-   * insertion cost over exhaustive global AddIntent behavior.
+   * target. Bounded candidate discovery favors local insertion over exhaustive
+   * global AddIntent behavior. Ancestor updates and refits still depend on the
+   * existing graph and extent sizes.
    */
   def addIntent(instance: Instance): Node = this.synchronized {
     addIntentUnsafe(instance)
@@ -598,10 +626,10 @@ class Lattice(
 
   /** Faster bounded insertion for large training runs.
     *
-    * This keeps closest-first generator search and ancestor updates, but omits
-    * full-extent coherence scans and recursive intersection construction. It
-    * samples a small bottom frontier, links the singleton directly below the
-    * most specific compatible generator, and updates a small ancestor closure.
+    * Keeps closest-first generator search and computes extent-union CVA
+    * intersections in a bounded bottom/child neighborhood. Parent intersections
+    * are inserted recursively and bypassed cover links are repaired before
+    * updating the accepted ancestor extents. Full coherence scans are omitted.
     * Average models use online means. CVA models reuse append-only bases with
     * an unrounded Float32 projector and the same results as a complete refit.
     * A bounded per-lattice LRU releases bases for concepts no longer in use.
@@ -714,7 +742,7 @@ class Lattice(
             (concept.classifies(singletonTarget.commonVector) &&
               singletonTarget.classifies(concept.commonVector))))
 
-    def boundedAncestorClosure(starts: Iterable[Node]): Set[Long] =
+    def fastAncestorClosure(starts: Iterable[Node]): Set[Long] =
       val startNodes = starts.toArray
       cacheDistancesParallel(startNodes)
       val ancestorOrdering = Ordering.by[Node, (Double, Long)] { concept =>
@@ -724,24 +752,23 @@ class Lattice(
       val scheduledAncestors = mutable.HashSet.empty[Long]
       startNodes
         .sortBy(fastRank)
-        .take(limits.ancestorRefits)
+        .take(limits.ancestorStarts)
         .foreach { start =>
           if scheduledAncestors.add(start.id) then ancestors.enqueue(start)
         }
 
       val closure = mutable.LinkedHashSet.empty[Long]
-      while ancestors.nonEmpty && closure.size < limits.ancestorRefits do
+      // Once a concept grows, every existing ancestor must receive the symbol;
+      // truncating this closure would invalidate parent/child extent inclusion.
+      while ancestors.nonEmpty do
         val concept = ancestors.dequeue()
         if closure.add(concept.id) then
-          val remainingSlots = limits.ancestorRefits - scheduledAncestors.size
-          if remainingSlots > 0 then
-            val parents = concept.parents.iterator
-              .flatMap(nodeMap.get)
-              .filter(parent => scheduledAncestors.add(parent.id))
-              .take(remainingSlots)
-              .toArray
-            cacheDistancesParallel(parents)
-            parents.foreach(ancestors.enqueue(_))
+          val parents = concept.parents.iterator
+            .flatMap(nodeMap.get)
+            .filter(parent => scheduledAncestors.add(parent.id))
+            .toArray
+          cacheDistancesParallel(parents)
+          parents.foreach(ancestors.enqueue(_))
       closure.toSet
 
     val searchedNodes = visited.iterator.flatMap(nodeMap.get).toArray
@@ -770,11 +797,79 @@ class Lattice(
       .foldLeft(Vector.empty[Node]) { (selected, candidate) =>
         if selected.exists(_.id == candidate.id) then selected else selected :+ candidate
       }
-      .take(limits.ancestorRefits)
-    val acceptedIds = boundedAncestorClosure(extentSeeds) + objectNode.id
+      .take(limits.ancestorStarts)
+    val acceptedIds = fastAncestorClosure(extentSeeds) + objectNode.id
+
+    val objectSymbols = effectiveSymbols(acceptedIds, objectNode, instance)
+    val childCandidates = generator.toArray.flatMap(_.children.iterator
+      .flatMap(nodeMap.get).take(maxChildrenPerGenerator))
+    val intersectionCandidates = (bottomCandidates.sortBy(fastRank).take(maxChildrenPerGenerator) ++
+      childCandidates).distinctBy(_.id)
+    cacheDistancesParallel(intersectionCandidates)
+    val intersectionStarts = intersectionCandidates.sortBy(fastRank).take(maxChildrenPerGenerator)
+
+    // Snapshot the old parent paths before cover insertion moves any edges.
+    // The existing depth/width and seed budgets also bound intersection work.
+    val intersectionParents = mutable.LongMap.empty[Array[Node]]
+    val toSnapshot = mutable.ArrayDeque.from(intersectionStarts.map(node => (node, 0)))
+    while toSnapshot.nonEmpty && intersectionParents.size < limits.ancestorStarts do
+      val (concept, depth) = toSnapshot.removeHead()
+      val symbols = effectiveSymbols(acceptedIds, concept, instance)
+      if !intersectionParents.contains(concept.id) &&
+        !objectSymbols.subsetOf(symbols) && !symbols.subsetOf(objectSymbols) then
+        val parents =
+          if depth >= maxRecursionDepth then Array.empty[Node]
+          else concept.parents.iterator.flatMap(nodeMap.get).take(maxChildrenPerGenerator).toArray
+        intersectionParents.put(concept.id, parents)
+        parents.foreach(parent => toSnapshot.append((parent, depth + 1)))
+
+    val intersectionTargets = mutable.HashMap.empty[Set[String], Node]
+    val intersectionResults = mutable.LongMap.empty[Node]
+    val pendingExtents = mutable.HashMap.empty[Set[String], Node]
+    acceptedIds.iterator.flatMap(nodeMap.get).toVector.sortBy(_.id).foreach { node =>
+      pendingExtents.getOrElseUpdate(effectiveSymbols(acceptedIds, node, instance), node)
+    }
+    def insertIntersection(concept: Node): Option[Node] =
+      val symbols = effectiveSymbols(acceptedIds, concept, instance)
+      if objectSymbols.subsetOf(symbols) then Some(concept)
+      else if symbols.subsetOf(objectSymbols) then Some(objectNode)
+      else intersectionResults.get(concept.id).orElse {
+        intersectionParents.get(concept.id).map { parents =>
+          val unionSymbols = symbols ++ objectSymbols
+          val intersection = intersectionTargets.getOrElseUpdate(unionSymbols, {
+            exactExtent(unionSymbols)
+              .orElse(pendingExtents.get(unionSymbols))
+              .getOrElse {
+                val members = mutable.LinkedHashMap.empty[String, Instance]
+                (concept.instancesIterator ++ objectNode.instancesIterator ++ Iterator.single(instance))
+                  .foreach(member => members.getOrElseUpdate(member.symbol, member))
+                val target = createNode(members.values, doAverage = false)
+                // A reused learned intent must still contain both operands' extents.
+                registerNode(target, existing =>
+                  unionSymbols.subsetOf(effectiveSymbols(acceptedIds, existing, instance)) &&
+                    equivalent(existing, target))
+              }
+          })
+          intersectionResults.put(concept.id, intersection)
+          parents.foreach { parent =>
+            insertIntersection(parent).foreach { upper =>
+              linkFastCover(acceptedIds, upper, intersection, instance)
+            }
+          }
+          linkFastCover(acceptedIds, intersection, concept, instance)
+          linkFastCover(acceptedIds, intersection, objectNode, instance)
+          intersection
+        }
+      }
 
     generator.foreach { parent =>
-      if locallyMoreGeneral(acceptedIds, parent, objectNode, instance) then linkFast(parent, objectNode)
+      linkFastCover(acceptedIds, parent, objectNode, instance)
+    }
+    intersectionStarts.foreach { concept =>
+      insertIntersection(concept).foreach { intersection =>
+        linkFastCover(acceptedIds, intersection, concept, instance)
+        linkFastCover(acceptedIds, intersection, objectNode, instance)
+      }
     }
 
     acceptedIds.foreach { conceptId =>
@@ -894,7 +989,7 @@ class Lattice(
    */
   def printRandomNodeSymbols(
                               nodeCount: Int = 3,
-                              symbolsPerNode: Int = 5,
+                              symbolsPerNode: Int = 20,
                               random: Random = Random
                             ): Unit = {
 
@@ -1280,8 +1375,8 @@ class Lattice(
    * Node's symbol-keyed extent performs the required duplicate-symbol handling, so
    * this method deliberately avoids copying all instances for separate deduplication.
    */
-  private def createNode(instances: Iterable[Instance]): Node =
-    new Node(nextId.getAndIncrement(), instances, cva)
+  private def createNode(instances: Iterable[Instance], doAverage: Boolean = true): Node =
+    new Node(nextId.getAndIncrement(), instances, cva, do_avg = doAverage)
 
 private object Lattice:
   val FileMagic = 0x43564146 // "CVAF"

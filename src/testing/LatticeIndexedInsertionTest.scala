@@ -16,6 +16,8 @@ object LatticeIndexedInsertionTest:
       java.lang.Double.doubleToLongBits(b.classificationRadius), "Radius changed")
 
   private def sameLattice(a: Lattice, b: Lattice): Unit =
+    a.validate()
+    b.validate()
     assert(a.nodes.map(_.id) == b.nodes.map(_.id))
     a.nodes.zip(b.nodes).foreach { (left, right) =>
       assert(left.symbols == right.symbols)
@@ -119,8 +121,9 @@ object LatticeIndexedInsertionTest:
             cached.addIntentFastIndexed(sample)
             sameLattice(reference, cached)
         }
-        // Each retained concept has at most 11 directions and one projector.
-        assert(Pointer.totalCount() - before <= cacheLimit * 12,
+        // An intersection can contain all 48 samples: at most 47 directions
+        // and one projector may remain per retained concept.
+        assert(Pointer.totalCount() - before <= cacheLimit * 48,
           "Evicted concepts retained native basis tensors")
         cached.load(emptyCheckpoint.toString)
         assert(cached.size == 0 && Pointer.totalCount() <= before,

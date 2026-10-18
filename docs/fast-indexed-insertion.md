@@ -1,10 +1,61 @@
 # Indexed fast insertion
 
-`Lattice.addIntentFastIndexed(instance)` preserves the existing `addIntentFast`
-search budgets, candidate ordering, equivalence predicate, symbolic edge order,
-accepted extent updates, and classification-radius calculation. The word trainer
-uses this method and inserts batches in input order. It uses one native PyTorch
-thread per score; the lattice owns parallel scoring of independent models.
+`Lattice.addIntentFastIndexed(instance)` uses the same intersection-capable
+insertion as `addIntentFast`, with exact-extent indexes and conservative singleton
+bounds. Both methods preserve their common candidate ordering, extent updates,
+symbolic edge order, and classification-radius calculation. Callers should use
+one native PyTorch thread per score; the lattice owns parallel scoring of
+independent models.
+
+For selected bottom concepts and generator children, insertion computes the
+learned intent intersection by fitting a CVA to the union of the operand extents.
+New intersections use the full configured fit, including their CVA projector;
+they do not start with an average-only model. If the incoming object reuses an
+existing concept, the union includes that concept's complete extent.
+
+Parent intersections are inserted recursively, including a new root when no
+existing generator contains both operands. Exact extents are reused, including
+extents already scheduled to receive the incoming symbol. Learned-intent reuse
+additionally requires the selected node to contain the union's symbolic extent.
+Cover links are inserted above both operands, moving bypassed edges through the
+new intermediate nodes. Existing models remain unchanged until this structural
+work is complete, keeping all per-insertion predicate caches valid.
+
+Intersection discovery uses at most `maxChildrenPerGenerator` starts and parents
+per step, `maxRecursionDepth` levels, and `limits.ancestorStarts` incomparable
+concepts. These bounds preserve the fast method's local approximation. Once an
+existing concept receives a new symbol, all of its existing ancestors receive
+it too; truncating that propagation would violate symbolic extent inclusion.
+Intersection creation can increase the node count and insertion cost.
+
+Search defaults favor a smaller neighborhood. Regular insertion samples at most
+2,048 bottom nodes, retains 128 starts, and visits 256 generator candidates.
+Both paths inspect up to 8 children per generator and limit recursion depth to 4.
+Fast insertion scales its budgets with
+`sqrt(fastBudgetReferenceNodes / nodeCount)`, clamped by
+`fastMinimumBudgetScale` and these per-budget floors:
+
+| Fast budget | Maximum (up to 1,024 nodes) | Floor |
+| --- | ---: | ---: |
+| Bottom samples | 512 | 128 |
+| Bottom starts | 64 | 16 |
+| Search visits | 192 | 48 |
+| Ancestor/intersection starts | 24 | 8 |
+
+At 253,464 nodes, the defaults use the floor values. Floors cannot override a
+lowered maximum; previously the floors forced at least 512 starts and 1,024
+visits even when their constants were smaller. Narrower searches can select
+different concepts and discover fewer intersections. Intersection fitting and
+recursive insertion remain enabled, and both insertion paths propagate accepted
+extent changes through every existing ancestor to preserve valid edges.
+
+On a local fixture with 8,192 isolated, two-dimensional singleton concepts,
+16 insertions took a median 4.638 seconds before tuning and 1.238 seconds after
+through regular insertion (3.75x faster). Indexed fast insertion went from
+1.877 seconds to 0.715 seconds (2.63x faster). These are medians of three runs
+with alternating before/after order, excluding checkpoint loading. Fast insertion
+finished with 8,310 nodes instead of 8,512 because of the narrower intersection
+search. This fixture measures search-budget effects, not full-corpus performance.
 
 The indexing optimization adapts this research idea:
 
@@ -53,6 +104,10 @@ with fresh basis caches. Search distances and equivalence results remain local
 to each incoming sample. Singleton bounds retain decoded Float32 centers.
 Neither bases nor singleton centers are written to the checkpoint format.
 
+Run `cvafca.LatticeFastIntersectionTest` for root construction, recursive parent
+intersections, modified generators, intersection reuse, actual CVA projectors,
+and cover-edge invariants through both fast entry points.
+
 Run `cvafca.LatticeIndexedInsertionTest` for comparisons after each insertion:
 node IDs, extents, edges, common vectors, projections and radii must match the
 existing fast method. The checks also cover fractional/mutual equivalence,
@@ -68,10 +123,11 @@ Reading embeddings and comparing results are excluded from the timing.
 
 A local reproduction extracted a 593-member, 300-dimensional concept from an
 existing checkpoint and appended 24 new symbols using its first 24 vectors.
-After the initial native-memory cleanup, full refits took 131.5 seconds. Basis
+Before intersection handling was added, full refits took 131.5 seconds. Basis
 reuse, suffix replay, and work buffers reduced the same workload to 7.5 seconds,
 including the initial basis rebuild. Common vectors, projections, radii, and
 node counts matched bit for bit after every insertion. This isolated measurement
-excludes loading and does not measure searches across the full checkpoint.
+excludes loading and does not measure searches across the full checkpoint or
+the additional intersections now computed by fast insertion.
 Full-corpus speed depends on concept sizes, search costs, cache eviction, and
 how much of a basis must be replayed when the rank tolerance changes.

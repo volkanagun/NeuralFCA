@@ -19,7 +19,9 @@ object LatticeFastInsertionTest:
       assert(lattice.addIntentFast(first).id == node.id)
       assert(reused.size == size && lattice.size == 1)
       val distinct = lattice.addIntentFast(Instance("far", numeric.BFloatTensors(Seq(100f, 100f))))
-      assert(distinct.id != node.id && lattice.size == 2)
+      assert(distinct.id != node.id && lattice.size == 3)
+      val intersection = lattice.nodes.find(_.symbols == Set("first", "similar", "far")).get
+      assert(intersection.children.toSet == Set(node.id, distinct.id))
       assert(reused.commonVector.floatValues.sameElements(Array(1f, 2f)))
       assert(lattice.nodes.forall(n => !n.parents.contains(n.id) && !n.children.contains(n.id)))
       val near = Instance("near", numeric.BFloatTensors(Seq(1.125f, 2f)))
@@ -36,8 +38,9 @@ object LatticeFastInsertionTest:
       global.addIntentFast(Instance(s"isolated$index", numeric.BFloatTensors(Seq(index.toFloat, 0f))))
     }
     val outside = global.addIntentFast(Instance("outside", numeric.BFloatTensors(Seq(19f, 0f))))
-    assert(global.size == 20 && outside.id == isolated.last.id)
+    assert(isolated.map(_.id).distinct.size == 20 && outside.id == isolated.last.id)
     assert(outside.symbols == Set("isolated19", "outside"))
+    global.validate()
 
     // Interleaved insertions with the same node IDs and symbols must use fresh
     // scores in both lattices, including when they share a CVA configuration.
@@ -51,13 +54,16 @@ object LatticeFastInsertionTest:
         val value = (index % 2 * 10).toFloat
         insert(left, Instance(s"sample$index", numeric.BFloatTensors(Seq(value, 0f))))
         insert(right, Instance(s"sample$index", numeric.BFloatTensors(Seq(value + 100f, 0f))))
-      assert(left.size == 2 && right.size == 2)
-      assert(left.nodes.forall(_.size == 64) && right.nodes.forall(_.size == 64))
+      assert(left.size == 3 && right.size == 3)
+      assert(left.nodes.count(_.size == 64) == 2 && right.nodes.count(_.size == 64) == 2)
+      assert(left.nodes.exists(_.size == 128) && right.nodes.exists(_.size == 128))
       assert(left.node(0).commonVector.floatValues.sameElements(Array(0f, 0f)))
       assert(right.node(0).commonVector.floatValues.sameElements(Array(100f, 0f)))
       insert(left, Instance("left-only", numeric.BFloatTensors(Seq(0f, 0f))))
       assert(left.node(0).size == 65 && right.node(0).size == 64)
       assert(!right.nodes.exists(_.containsSymbol("left-only")))
+      left.validate()
+      right.validate()
 
     // Early coverage exits must agree with exhaustive scoring at fractional thresholds.
     for threshold <- Seq(0.25, 0.5, 0.75, 1.0); mutual <- Seq(false, true) do

@@ -7,7 +7,7 @@ import java.nio.file.{Files, Paths}
 import java.util.concurrent.ForkJoinPool
 import org.bytedeco.pytorch.global.torch as nativeTorch
 
-import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
+import scala.collection.parallel.CollectionConverters.{ArrayIsParallelizable, ImmutableSeqIsParallelizable}
 import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
 
@@ -16,8 +16,8 @@ import java.io.File
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
-  val batchSize = 24
-  val parallelSize = 1
+  val batchSize = 4
+  val parallelSize = 4
   val cpuParallelism: Int = 24
   val device = torch.Device.CPU
   val tokenizer = new Tokenizer()
@@ -62,7 +62,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
 
     try
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelBatch.foreach(batch => {
+        parallelBatch.par.foreach(batch => {
           batch.foreach(embedding => {
             lattice.addIntentFastIndexed(embedding)
           })
@@ -70,7 +70,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
         })
         //lattice.save(binaryFilename)
         processed += parallelBatch.iterator.map(_.size.toLong).sum
-        //lattice.printRandomNodeSymbols()
+        lattice.printRandomNodeSymbols()
         val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
         val hours = elapsedSeconds / 3600
         val minutes = (elapsedSeconds % 3600) / 60
@@ -134,8 +134,8 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.80
-  val endDistance = 0.82
+  val startDistance = 0.70
+  val endDistance = 0.71
 
   def train(crrDistance:Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)
@@ -160,8 +160,8 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
 
 object CVAWordMain {
   def main(args: Array[String]): Unit = {
-    for (i<-10000 until 260000 by 2000){
-      new CVAWordIncremental(i, 2000).train()
+    for (i<-0 until 260000 by 20000){
+      new CVAWordIncremental(i, 20000).train()
       System.gc()
     }
   }
