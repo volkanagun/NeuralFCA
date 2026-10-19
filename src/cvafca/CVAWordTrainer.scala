@@ -62,11 +62,8 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
 
     try
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelBatch.par.foreach(batch => {
-          batch.foreach(embedding => {
-            lattice.addIntentFastIndexed(embedding)
-          })
-          //lattice.compute()
+        parallelBatch.foreach(batch => {
+          lattice.fastAddIntent(batch)
         })
         //lattice.save(binaryFilename)
         processed += parallelBatch.iterator.map(_.size.toLong).sum

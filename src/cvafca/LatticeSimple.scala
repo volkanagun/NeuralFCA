@@ -141,8 +141,7 @@ final class LatticeSimple(
         frame.newParents.foreach { parent =>
           if locallyMoreGeneral(acceptedIds, frame.generator, newConcept, instance) &&
               locallyMoreGeneral(acceptedIds, newConcept, parent, instance) then
-            frame.generator.children.remove(parent.id)
-            parent.parents.remove(frame.generator.id)
+            unlink(frame.generator, parent)
 
           if locallyMoreGeneral(acceptedIds, parent, newConcept, instance) then
             link(bottomFrontier, acceptedIds, parent, newConcept, instance)
@@ -153,8 +152,7 @@ final class LatticeSimple(
         frame.preferredGenerator.foreach { original =>
           if locallyMoreGeneral(acceptedIds, newConcept, original, instance) then
             if locallyMoreGeneral(acceptedIds, frame.generator, newConcept, instance) then
-              frame.generator.children.remove(original.id)
-              original.parents.remove(frame.generator.id)
+              unlink(frame.generator, original)
             link(bottomFrontier, acceptedIds, newConcept, original, instance)
         }
 

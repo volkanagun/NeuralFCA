@@ -7,6 +7,43 @@ symbolic edge order, and classification-radius calculation. Callers should use
 one native PyTorch thread per score; the lattice owns parallel scoring of
 independent models.
 
+The node store tracks new nodes, and extent callbacks queue affected node IDs.
+`ensureExtentIndexes` refreshes only these pending entries. Repeated mutations
+before a lookup queue a node once; adding nodes never triggers a full scan or
+rebuild of unchanged entries. Exact-extent and singleton-index reads flush pending
+updates, including reads during an insertion. Loading or cloning initially queues
+all restored nodes because they have no index entries yet.
+
+Index keys cache each immutable extent's hash. Singleton refits reuse the existing
+key and immediately invalidate their decoded center. Centers are decoded on demand
+when indexed singleton bounds need them; `fastAddIntent` does not need those arrays.
+Node insertion order is recorded when a node is stored, so dirty processing order
+and extent convergence do not change canonical selection. Replacing a node keeps
+its order; removing and readding it assigns a new order and detaches stale callbacks.
+
+For refreshes with at least 4,096 pending nodes and 1,048,576 affected symbols, up
+to eight workers hash immutable snapshots. Mutable indexes are published
+sequentially using those stable order keys. Smaller refreshes use the sequential
+path. With no pending changes, `ensureExtentIndexes` takes constant time.
+
+A local comparison against eager callback indexing started with 8,192 indexed
+nodes containing 128 symbols each. Adding 512 symbols to each of 32 nodes (16,384
+mutation calls) and refreshing their indexes took a median 3.43 ms versus 39.08 ms
+(11.38x). Five measured runs followed warmup, with alternating implementation order
+and exact lookup checks for changed and unchanged nodes. Node construction, CVA
+fitting and initial indexing were excluded; this measures coalesced mutation/index
+work rather than total training time.
+
+An earlier index-setup comparison against the preceding implementation used 16,384
+prebuilt nodes in average mode (`noCVA = true`), five measured builds after warmup,
+and alternating implementation order. Median index-build time for 256-symbol extents fell from 56.88 ms to
+18.89 ms (3.01x). For 300-dimensional singleton nodes it fell from 139.15 ms to
+5.60 ms (24.84x), primarily because decoding moved to first use. These timings
+exclude node construction and measure index setup, not total training time.
+Exact lookups were checked against the same expected node IDs. The regression
+`cvafca.LatticeExtentIndexTest` also checks hash collisions, parallel build order,
+batched extent updates, replacement, removal/readdition and converging keys.
+
 For selected bottom concepts and generator children, insertion computes the
 learned intent intersection by fitting a CVA to the union of the operand extents.
 New intersections use the full configured fit, including their CVA projector;
@@ -38,8 +75,8 @@ insertion and are never shared across lattices.
 Approximate registration rejects insufficient symbol overlap early and avoids
 checking the same rejected candidate again during the fallback scan. New targets
 already contain their complete extent and need no propagation. Reused nodes append
-members in batches, publishing one extent-index update per changed node rather
-than rebuilding its index for every appended member. Candidate order, intersection
+members in batches, queuing one extent-index refresh per affected node until an
+index read needs the changes. Candidate order, intersection
 budgets, CVA arithmetic, equivalence thresholds and model refits are preserved.
 
 A frozen before/after comparison on the first 32 local 300-dimensional embeddings
