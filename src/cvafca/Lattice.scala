@@ -18,7 +18,7 @@ import scala.collection.parallel.ForkJoinTaskSupport
 
 final case class LatticeConfig(
                                 /** Fraction of the other node's instances that must be classified. */
-                                equalityCoverage: Double = 0.95,
+                                equalityCoverage: Double = 0.80,
 
                                 /** If true, also require mutual common-vector classification. */
                                 requireMutualCommonClassification: Boolean = false,
@@ -166,7 +166,7 @@ class Lattice(
       nodeMap.valuesIterator.foreach(indexNode)
       indexesReady = true
 
-  /** Reuse exact extents first, then learned intents satisfying the caller's predicate.
+  /** Prefer approximate extent matches satisfying the caller's intent predicate.
     * Look beyond the bounded generator search when checking existing nodes.
     * Models remain unchanged until the insertion's final extent updates.
     */
@@ -179,10 +179,42 @@ class Lattice(
     else nodeMap.valuesIterator.find(existing =>
       existing.size == symbols.size && symbols.forall(existing.containsSymbol))
 
+  /** Exact snapshots are a fast path; approximate matches must also have the
+    * requested learned intent. Scan the same candidates with or without indexes.
+    */
+  private def approximateExtent(symbols: Set[String], sameIntent: Node => Boolean): Option[Node] =
+    exactExtent(symbols).orElse {
+      nodeMap.valuesIterator.find(existing =>
+        overlapsEnough(symbols, existing) &&
+          sameIntent(existing))
+    }
+
+  /** Stop once enough shared symbols are found or the remaining ones cannot
+    * reach the threshold. Reject undersized candidates before scanning symbols.
+    */
+  private def overlapsEnough(symbols: Set[String], existing: Node): Boolean =
+    val total = symbols.size
+    if total == 0 || existing.size.toDouble / total < config.equalityCoverage then return false
+    var shared = 0
+    var remaining = total
+    val iterator = symbols.iterator
+    while iterator.hasNext do
+      if existing.containsSymbol(iterator.next()) then shared += 1
+      remaining -= 1
+      if shared.toDouble / total >= config.equalityCoverage then return true
+      if (shared + remaining).toDouble / total < config.equalityCoverage then return false
+    false
+
   private def registerNode(node: Node, sameIntent: Node => Boolean): Node =
     val symbols = node.symbols
-    exactExtent(symbols)
-      .orElse(nodeMap.valuesIterator.find(sameIntent))
+    // No model, extent or edge changes between these two scans. Do not repeat
+    // expensive CVA comparisons already rejected by the preferred overlap scan.
+    val tested = mutable.HashSet.empty[Long]
+    approximateExtent(symbols, existing =>
+      tested += existing.id
+      sameIntent(existing))
+      .orElse(nodeMap.valuesIterator.find(existing =>
+        !tested.contains(existing.id) && sameIntent(existing)))
       .getOrElse {
         nodeMap.put(node.id, node)
         if indexesReady then indexNode(node)
@@ -775,6 +807,61 @@ class Lattice(
     val singletonTarget = createNode(List(instance))
     val limits = fastSearchLimits(nodeMap.size)
 
+    // Models stay fixed until structural insertion finishes. Extents overlap
+    // heavily, so retain scalar CVA results by tensor identity across candidates.
+    // Bound both the number of classifiers and scores, and never share them
+    // across insertions or lattices. Identity keys also distinguish different
+    // vectors supplied with the same symbolic label.
+    val classificationScores = mutable.LongMap.empty[
+      java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Boolean]]
+    var cachedClassifications = 0
+    def scoresFor(classifier: Node): java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Boolean] =
+      classificationScores.getOrElse(classifier.id, {
+        if classificationScores.size >= 2048 || cachedClassifications >= 65536 then null
+        else
+          val scores = new java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Boolean]()
+          classificationScores.put(classifier.id, scores)
+          scores
+      })
+
+    def cachedClassifies(
+        classifier: Node,
+        scores: java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Boolean],
+        vector: Tensor[BFloat16]
+    ): Boolean =
+      val known = if scores == null then null else scores.get(vector)
+      if known != null then known.booleanValue()
+      else
+        val result =
+          if vector eq instance.vector then
+            incomingDistanceCache.get(classifier.id)
+              .map(distance => distance.isFinite && distance <= classifier.classificationRadius)
+              .getOrElse(classifier.classifies(vector))
+          else classifier.classifies(vector)
+        if scores != null && cachedClassifications < 65536 && scores.size() < 4096 then
+          scores.put(vector, java.lang.Boolean.valueOf(result))
+          cachedClassifications += 1
+        result
+
+    def cachedCoverage(classifier: Node, extent: Node): Boolean =
+      val scores = scoresFor(classifier)
+      val total = extent.size
+      var accepted = 0
+      var remaining = total
+      val members = extent.instancesIterator
+      while members.hasNext do
+        if cachedClassifies(classifier, scores, members.next().vector) then accepted += 1
+        remaining -= 1
+        if accepted.toDouble / total >= config.equalityCoverage then return true
+        if (accepted + remaining).toDouble / total < config.equalityCoverage then return false
+      total == 0
+
+    def equivalentIntersection(existing: Node, target: Node): Boolean =
+      cachedCoverage(existing, target) && cachedCoverage(target, existing) &&
+        (!config.requireMutualCommonClassification ||
+          (cachedClassifies(existing, scoresFor(existing), target.commonVector) &&
+            cachedClassifies(target, scoresFor(target), existing.commonVector)))
+
     /** Measure independent model distances on workers, then update the mutable
       * per-insertion cache on this thread before queue ordering reads it.
       */
@@ -915,7 +1002,27 @@ class Lattice(
       .take(limits.ancestorStarts)
     val acceptedIds = fastAncestorClosure(extentSeeds) + objectNode.id
 
-    val objectSymbols = effectiveSymbols(acceptedIds, objectNode, instance)
+    val extendedIds = mutable.LinkedHashSet.empty[Long]
+
+    /** Extending a candidate must not collapse an existing strict parent edge.
+      * Every ancestor will receive the same missing samples, so each edge must
+      * retain at least one distinguishing parent member after that propagation.
+      */
+    def canExtend(existing: Node, symbols: Set[String]): Boolean =
+      ancestorClosure(existing).forall { id =>
+        val child = nodeMap(id)
+        val grown = effectiveSymbols(acceptedIds, child, instance) ++ symbols
+        child.parents.forall(parentId =>
+          !effectiveSymbols(acceptedIds, nodeMap(parentId), instance).subsetOf(grown))
+      }
+
+    def extendIntersection(existing: Node, members: Vector[Instance]): Unit =
+      ancestorClosure(existing).toVector.sorted.foreach { id =>
+        val concept = nodeMap(id)
+        if concept.addInstancesWithoutRefit(members) then extendedIds += id
+      }
+
+    def objectSymbols = effectiveSymbols(acceptedIds, objectNode, instance)
     val childCandidates = generator.toArray.flatMap(_.children.iterator
       .flatMap(nodeMap.get).take(maxChildrenPerGenerator))
     val intersectionCandidates = (bottomCandidates.sortBy(fastRank).take(maxChildrenPerGenerator) ++
@@ -959,10 +1066,15 @@ class Lattice(
                 (concept.instancesIterator ++ objectNode.instancesIterator ++ Iterator.single(instance))
                   .foreach(member => members.getOrElseUpdate(member.symbol, member))
                 val target = createNode(members.values, doAverage = false)
-                // A reused learned intent must still contain both operands' extents.
-                registerNode(target, existing =>
-                  unionSymbols.subsetOf(effectiveSymbols(acceptedIds, existing, instance)) &&
-                    equivalent(existing, target))
+                // Learned equality supplies candidates even with incomplete
+                // symbolic extents. Expand a reused node before placing edges;
+                // keep its model fixed until all structural work is finished.
+                val intersection = registerNode(target, existing =>
+                  equivalentIntersection(existing, target) && canExtend(existing, unionSymbols))
+                // A newly registered target already owns its complete extent
+                // and has no parents. Only reused nodes need propagation.
+                if intersection.id != target.id then extendIntersection(intersection, target.instances)
+                intersection
               }
           })
           intersectionResults.put(concept.id, intersection)
@@ -989,10 +1101,16 @@ class Lattice(
 
     acceptedIds.foreach { conceptId =>
       nodeMap.get(conceptId).foreach { concept =>
-        if cva.config.noCVA then concept.addInstanceFast(instance)
+        if extendedIds.contains(conceptId) then concept.addInstance(instance)
+        else if cva.config.noCVA then concept.addInstanceFast(instance)
         else if concept.addInstance(instance) then
           refitFast(concept)
       }
+    }
+    extendedIds.foreach { id =>
+      val concept = nodeMap(id)
+      if cva.config.noCVA then concept.refit()
+      else refitFast(concept)
     }
     objectNode
 

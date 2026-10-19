@@ -100,6 +100,20 @@ final class Node private[cvafca] (
     if changed then refit()
     changed
 
+  /** Append a complete intersection extent without changing the model. Publish
+    * one index update after the batch, rather than reindexing every new member.
+    */
+  private[cvafca] def addInstancesWithoutRefit(newInstances: IterableOnce[Instance]): Boolean =
+    var changed = false
+    newInstances.iterator.foreach { instance =>
+      if !extent.contains(instance.symbol) then
+        extent.put(instance.symbol, instance)
+        extentSymbols += instance.symbol
+        changed = true
+    }
+    if changed then extentChanged.foreach(_.apply())
+    changed
+
   private[cvafca] def model: CvaModel = currentModel
 
   private def addWithoutRefit(instance: Instance): Unit =

@@ -16,10 +16,41 @@ existing concept, the union includes that concept's complete extent.
 Parent intersections are inserted recursively, including a new root when no
 existing generator contains both operands. Exact extents are reused, including
 extents already scheduled to receive the incoming symbol. Learned-intent reuse
-additionally requires the selected node to contain the union's symbolic extent.
+can also select nodes whose recorded extents do not yet contain the operands.
+Registration prefers symbol overlap at `equalityCoverage` when the learned intent
+also matches, then searches other equivalent intents. Both indexed and unindexed
+insertion use this approximate lookup; exact snapshots remain a fast path.
+Before reusing an intersection, its missing members are added to the selected
+node and every ancestor. A candidate is rejected if this expansion would make
+an existing parent and child have equal extents.
 Cover links are inserted above both operands, moving bypassed edges through the
 new intermediate nodes. Existing models remain unchanged until this structural
-work is complete, keeping all per-insertion predicate caches valid.
+work is complete, keeping cached model distances valid. Expanded models are
+refitted afterward.
+
+Intersection comparisons cache scalar CVA classifications by classifier ID and
+tensor identity for one insertion. The cache retains at most 65,536 results across
+2,048 classifiers, with at most 4,096 results per classifier; overflow uses the
+same scalar classification path. Extent changes do not invalidate these scores
+because models stay fixed until refitting. Scores are discarded before the next
+insertion and are never shared across lattices.
+
+Approximate registration rejects insufficient symbol overlap early and avoids
+checking the same rejected candidate again during the fallback scan. New targets
+already contain their complete extent and need no propagation. Reused nodes append
+members in batches, publishing one extent-index update per changed node rather
+than rebuilding its index for every appended member. Candidate order, intersection
+budgets, CVA arithmetic, equivalence thresholds and model refits are preserved.
+
+A frozen before/after comparison on the first 32 local 300-dimensional embeddings
+used `CvaConfig(0.5, 0.5)`, `equalityCoverage = 0.8`, a 32-node basis cache and one
+native PyTorch thread. Across three warmed runs with alternating execution order,
+median indexed insertion time fell from 61.10 seconds to 27.39 seconds (2.23x).
+Both versions produced the same 704 node IDs, extents, edges, common vectors,
+projections and radii. A separate 32-sample, eight-dimensional clustered fixture
+was roughly unchanged (194.9 ms versus 188.7 ms, 11 nodes). Parsing, warmup and
+result comparisons were excluded from these timings; these are local fixtures,
+not a full-checkpoint or full-corpus measurement.
 
 Intersection discovery uses at most `maxChildrenPerGenerator` starts and parents
 per step, `maxRecursionDepth` levels, and `limits.ancestorStarts` incomparable
@@ -80,6 +111,8 @@ operations retain their original rounding. Differentiable callers keep the
 functional tensor path because PyTorch out operations do not support autograd.
 
 Average models (`noCVA = true`) retain the configured online mean update path.
+An approximate intersection merge can append several samples at once; those
+changed average models are fully refitted after structural insertion.
 As with the lattice's shared tensors, sample vectors and model tensors are treated
 as read-only. After externally changing sample vectors, call `Node.refit()` before
 continuing insertion.
@@ -107,6 +140,10 @@ Neither bases nor singleton centers are written to the checkpoint format.
 Run `cvafca.LatticeFastIntersectionTest` for root construction, recursive parent
 intersections, modified generators, intersection reuse, actual CVA projectors,
 and cover-edge invariants through both fast entry points.
+
+Run `cvafca.LatticeApproximateExtentTest` for relaxed intersection reuse, ancestor
+extent propagation, complete model refits, rejection of collapsing parent edges,
+and approximate candidate lookup with and without indexes.
 
 Run `cvafca.LatticeIndexedInsertionTest` for comparisons after each insertion:
 node IDs, extents, edges, common vectors, projections and radii must match the

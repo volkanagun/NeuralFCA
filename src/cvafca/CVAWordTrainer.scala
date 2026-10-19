@@ -64,7 +64,7 @@ class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
       loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
         parallelBatch.par.foreach(batch => {
           batch.foreach(embedding => {
-            lattice.addIntent(embedding)
+            lattice.addIntentFastIndexed(embedding)
           })
           //lattice.compute()
         })
@@ -134,8 +134,8 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
   val windowSize = 3;
   val avg = true
   val noCVA = false
-  val startDistance = 0.70
-  val endDistance = 0.71
+  val startDistance = 0.50
+  val endDistance = 0.51
 
   def train(crrDistance:Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)
