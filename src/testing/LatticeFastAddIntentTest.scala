@@ -31,8 +31,10 @@ object LatticeFastAddIntentTest:
 
     // Different IDs can belong to the same learned intersection.
     val alias = sample("shared-alias", 4f, 0f)
-    val other = new Node(1000L, Vector(alias, sample("above", 4f, 8f)), cva, do_avg = false)
-    val learnedIntersection = lattice.intersectNodes(a, other).get
+    val aliasLattice = new Lattice(cva)
+    aliasLattice.fastAddIntent(horizontal)
+    val other = aliasLattice.fastAddIntent(Vector(alias, sample("above", 4f, 8f)))
+    val learnedIntersection = aliasLattice.nodes.find(_.symbols == Set("shared", "shared-alias")).get
     assert(learnedIntersection.symbols == Set("shared", "shared-alias"))
     assert(learnedIntersection.instances.forall(a.classifies))
     assert(learnedIntersection.instances.forall(other.classifies))
@@ -41,9 +43,7 @@ object LatticeFastAddIntentTest:
     assert(learnedIntersection.projection.floatValues.sameElements(expected.projection.floatValues))
 
     // Disjoint intersections stay virtual and must not invoke CVA.fit(empty).
-    val far = new Node(1001L, Vector(sample("far", 40f, 40f)), cva, do_avg = false)
-    assert(lattice.intersectNodes(intersection, far).isEmpty)
-    val isolated = lattice.fastAddIntent(far.instances.head)
+    val isolated = lattice.fastAddIntent(sample("far", 40f, 40f))
     assert(isolated.parents.isEmpty && isolated.children.isEmpty && lattice.size == 4)
 
     // Mutual coverage reuses equivalent intents and updates all their ancestors.

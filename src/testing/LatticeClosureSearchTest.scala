@@ -109,9 +109,4 @@ object LatticeClosureSearchTest:
     assert(exact.size == 600)
     exact.validate()
 
-    // The iterative insertion engine must maintain the same frontier indexes.
-    val simple = new LatticeSimple(new CVA(2, CvaConfig(0.05, 1.0)))
-    Vector(sample("simple-a", 0f, 0f), sample("simple-b", 4f, 0f),
-      sample("simple-c", 0f, 4f)).foreach(simple.addIntent)
-    simple.validate()
     println("Closure graph directions, full CVA verification and parallel determinism checks passed.")

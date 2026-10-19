@@ -2,7 +2,6 @@ package concept
 
 import torch.{Device, BFloat16, Tensor}
 
-import scala.util.Random
 
 class CVANode(
     val id:Int,
@@ -23,11 +22,6 @@ class CVANode(
   def items(symbols:Array[String]):CVANode={
     this.items = symbols
     this
-  }
-
-  def randomSymbols(count: Int, random: Random = Random): Array[String] = {
-    require(count >= 0, "Symbol count cannot be negative")
-    random.shuffle(items.toIndexedSeq).take(count).toArray
   }
 
   def instances(instances: Array[Array[Tensor[BFloat16]]]):CVANode = {
@@ -56,18 +50,6 @@ class CVANode(
       items = items :+ symbol
       true
     }
-  }
-
-  def compute():CVANode={
-    if instances.nonEmpty then {
-      for (i <- projections.indices) {
-        val items = instances.map(instance=> instance(i))
-        val (projection, cva) = CVAUtil.compute(items)
-        cv(i) = cva
-        projections(i) = projection
-      }
-    }
-    this
   }
 
 }

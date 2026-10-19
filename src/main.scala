@@ -1,7 +1,5 @@
 
 import torch.DType.bfloat16
-import torch.Device
-import torch.DeviceType
 
 @main
 def main(): Unit = {
@@ -15,18 +13,18 @@ def main(): Unit = {
   val t2 = t1.to(dtype = bfloat16)
   // t2: Tensor[BFloat16] = dtype=bfloat16, shape=[4], device=CPU
   // [0,0000, 1,0000, 2,0000, 3,0000]
-  val t3 = t1 + t2
-  // t3: Tensor[BFloat16] = dtype=bfloat16, shape=[4], device=CPU
+  t1 + t2
+  // Tensor[BFloat16] = dtype=bfloat16, shape=[4], device=CPU
   // [0,0000, 2,0000, 4,0000, 6,0000]
 
   val shape = Seq(2, 3)
   // shape: Seq[Long] = List(2, 3)
-  val randTensor = torch.rand(shape, dtype = bfloat16)
-  // randTensor: Tensor[BFloat16] = dtype=bfloat16, shape=[2, 3], device=CPU
+  torch.rand(shape, dtype = bfloat16)
+  // Tensor[BFloat16] = dtype=bfloat16, shape=[2, 3], device=CPU
   // [[0,4341, 0,9738, 0,9305],
   //  [0,8987, 0,1122, 0,3912]]
-  val zerosTensor = torch.zeros(shape, dtype = bfloat16)
-  // zerosTensor: Tensor[BFloat16] = dtype=bfloat16, shape=[2, 3], device=CPU
+  torch.zeros(shape, dtype = bfloat16)
+  // Tensor[BFloat16] = dtype=bfloat16, shape=[2, 3], device=CPU
   // [[0, 0, 0],
   //  [0, 0, 0]]
 
@@ -43,5 +41,5 @@ def main(): Unit = {
   val b = torch.randn(Seq(3), dtype = bfloat16, requiresGrad = true)
   // b: Tensor[BFloat16] = dtype=bfloat16, shape=[3], device=CPU
   // [0,2638, 0,9697, 0,3664]
-  val z = (x matmul w) + b
+  (x matmul w) + b
 }

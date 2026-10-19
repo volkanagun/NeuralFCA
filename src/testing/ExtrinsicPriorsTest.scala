@@ -12,7 +12,7 @@ object ExtrinsicPriorsTest {
       "tam" -> numeric.BFloatTensors(Seq(6f, 8f)),
       "yüz" -> numeric.BFloatTensors(Seq(10f, 12f))
     )
-    val evaluator = new Evaluate(new Lattice(new CVA(2, CvaConfig(noCVA = true))).nodes, embeddings, 1)
+    val evaluator = new Evaluate(new Lattice(new CVA(2, CvaConfig(noCVA = true))).nodes, embeddings)
     val file = Files.createTempFile("extrinsic-priors-", ".txt")
     try {
       Files.writeString(file, "yüz|sayı|100|elli,bir\n" +

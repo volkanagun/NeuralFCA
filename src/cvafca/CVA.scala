@@ -63,16 +63,6 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
 
     CvaModel(commonVector, projection, radius)
 
-  /** Same model/radius calculation as fit_cva, with append-only basis reuse. */
-  private[cvafca] def fit_cached(samples: Iterable[Tensor[BFloat16]], basis: CvaBasisCache): CvaModel =
-    val tensors = samples.toArray
-    tensors.foreach(validate)
-    val (projection, commonVector) = basis.compute(tensors)
-    val provisional = CvaModel(commonVector, projection, radius = 0.0)
-    val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
-    CvaModel(commonVector, projection, math.max(
-      config.classificationThreshold, maxTrainingResidual * config.trainingRadiusScale))
-
   def fit_avg(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     val tensors = samples.toArray
     require(tensors.nonEmpty, "CVA.fit requires at least one sample")
@@ -94,42 +84,9 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     if config.noCVA then update_avg(samples)
     else update_cva(samples)
 
-  /** Constant-size online update used by bounded lattice insertion.
-    *
-    * Arithmetic is performed in Float32 and the retained model tensors are
-    * converted to BFloat16. The update cost depends on vector dimension rather
-    * than the number of instances already stored in the node.
-    */
-  def update(model: CvaModel, instance: Tensor[BFloat16], sampleCount: Int): CvaModel =
-    require(sampleCount > 1, "Incremental update requires the new total sample count")
-    val (projection, commonVector) =
-      if config.noCVA then
-        val updatedMean = numeric.BFloatTensors.scoped {
-          val previousWeight = (sampleCount - 1).toFloat
-          ((model.commonVector.to(torch.float32) * previousWeight + instance.to(torch.float32)) /
-            sampleCount.toFloat).to(torch.bfloat16)
-        }
-        (model.projection, updatedMean)
-      else
-        CVAUtil.update(instance, model.projection, model.commonVector)
-
-    val provisional = CvaModel(commonVector, projection, model.radius)
-    val incomingResidual = distance(provisional, instance)
-    val radius = math.max(
-      math.max(model.radius, config.classificationThreshold),
-      incomingResidual * config.trainingRadiusScale
-    )
-    provisional.copy(radius = radius)
-
   def update_cva(samples: Iterable[Tensor[BFloat16]]): CvaModel = fit(samples)
 
   def update_avg(samples: Iterable[Tensor[BFloat16]]): CvaModel = fit_avg(samples)
-
-  /** Fit the common-vector model of the union of two extents. */
-  def intersect(
-                 a: Iterable[Tensor[BFloat16]],
-                 b: Iterable[Tensor[BFloat16]]
-               ): CvaModel = fit(a ++ b)
 
   def project(model: CvaModel, x: Tensor[BFloat16]): Tensor[BFloat16] =
 

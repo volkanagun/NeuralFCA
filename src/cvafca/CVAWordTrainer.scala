@@ -1,135 +1,49 @@
 package cvafca
 
-import concept.CVALattice
-import similarity.Evaluate
-
 import java.nio.file.{Files, Paths}
-import java.util.concurrent.ForkJoinPool
 import org.bytedeco.pytorch.global.torch as nativeTorch
-
-import scala.collection.parallel.CollectionConverters.{ArrayIsParallelizable, ImmutableSeqIsParallelizable}
-import scala.collection.parallel.ForkJoinTaskSupport
 import torch.{BFloat16, Tensor}
-
-import java.io.File
 
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
-class CVAWordTrainer(val start: Int,val limit: Int, val dim: Int) {
+class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
   val batchSize = 4
   val parallelSize = 4
-  val cpuParallelism: Int = 24
   val device = torch.Device.CPU
-  val tokenizer = new Tokenizer()
-  val contextVocabulary = Evaluate.readExtrinsic()
-    .flatMap(sample => tokenizer.tokenize(sample.sentence)).toSet
-  val cvaDataset = new CVADataset(batchSize,start, limit, contextVocabulary)
-  val binaryFilename = "resources/binary/"
-
-
-  def binaryFilename(doContext:Boolean, windowSize:Int):String =
-    if doContext then s"${binaryFilename}fca-cva-${windowSize}.bin"
-    else s"${binaryFilename}fca-cva.bin"
-
-  private def parallelForeach[A](
-      values: Array[A],
-      taskSupport: ForkJoinTaskSupport
-  )(operation: A => Unit): Unit =
-    val parallelValues = values.par
-    parallelValues.tasksupport = taskSupport
-    parallelValues.foreach(operation)
-
-  private def configureCpu(): Unit =
-    // addIntent is a graph mutation transaction, while its tensor operations
-    // use PyTorch's native CPU pool across all available processors.
-    nativeTorch.set_num_threads(cpuParallelism)
+  val cvaDataset = new CVADataset(batchSize, start, limit)
+  val binaryFilename = "resources/binary/fca-cva.bin"
 
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
-    // Insert in input order. Lattice mutation is serialized; scoring owns the
-    // worker parallelism, so a native thread pool per score adds contention.
+    // Lattice mutation is serialized; scoring owns the worker parallelism.
     nativeTorch.set_num_threads(1)
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
     val lattice = new Lattice(CVA(dim, config))
-    val latticeFilename = binaryFilename(false, 0)
-    if Files.exists(Paths.get(latticeFilename)) then
-      lattice.load(latticeFilename)
-
-
+    if Files.exists(Paths.get(binaryFilename)) then
+      lattice.load(binaryFilename)
 
     val startedAt = System.nanoTime()
     var processed = 0L
-
-    try
-      loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelBatch.foreach(batch => {
-          lattice.fastAddIntent(batch)
-        })
-        //lattice.save(binaryFilename)
-        processed += parallelBatch.iterator.map(_.size.toLong).sum
-        //lattice.printRandomNodeSymbols()
-        val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
-        val hours = elapsedSeconds / 3600
-        val minutes = (elapsedSeconds % 3600) / 60
-        val seconds = elapsedSeconds % 60
-        println(
-          f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
-            f"Nodes: ${lattice.size}%,d"
-        )
-
-        //System.gc()
-      })
-
-    Files.createDirectories(Paths.get(binaryFilename(false,0)).getParent)
-    lattice.save(binaryFilename(false, 0))
-
-  def train(embeddingFilename: String, filename: String, windowSize: Int, noCVA: Boolean, avg: Boolean, minDistance:Double): Lattice =
-    val loads = if avg then cvaDataset.read_avg(embeddingFilename, filename, windowSize, device)
-    else cvaDataset.read(embeddingFilename, filename, windowSize, device)
-    val ddim = if avg then dim else (windowSize - 1) * dim
-    val config = CvaConfig(minDistance, minDistance, noCVA)
-    val lattice = new Lattice(CVA(ddim, config))
-    if Files.exists(Paths.get(binaryFilename(true, windowSize))) then
-      lattice.load(binaryFilename(true, windowSize))
-    val startedAt = System.nanoTime()
-    var processed = 0L
-
-    configureCpu()
-    val workerPool = new ForkJoinPool(cpuParallelism)
-    val taskSupport = new ForkJoinTaskSupport(workerPool)
-    println(s"Training with $cpuParallelism CPU workers")
-    try
-      loads.sliding(parallelSize, parallelSize).foreach(parallelBatch => {
-        parallelBatch.toArray.foreach(batch => {
-          parallelForeach(batch.toArray, taskSupport)(embedding => {
-            lattice.original(embedding)
-          })
-        })
-        //lattice.save(binaryFilename)
-        processed += parallelBatch.iterator.map(_.size.toLong).sum
-        //lattice.printRandomNodeSymbols()
-        val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
-        val hours = elapsedSeconds / 3600
-        val minutes = (elapsedSeconds % 3600) / 60
-        val seconds = elapsedSeconds % 60
-        println(
-          f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
-            f"Nodes: ${lattice.size}%,d"
-        )
-      })
-    finally workerPool.shutdown()
-    Files.createDirectories(Paths.get(binaryFilename(true, windowSize)).getParent)
-    lattice.save(binaryFilename(true, windowSize))
+    loads.sliding(parallelSize, parallelSize).foreach { parallelBatch =>
+      parallelBatch.foreach(batch => lattice.fastAddIntent(batch))
+      processed += parallelBatch.iterator.map(_.size.toLong).sum
+      val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
+      val hours = elapsedSeconds / 3600
+      val minutes = (elapsedSeconds % 3600) / 60
+      val seconds = elapsedSeconds % 60
+      println(
+        f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | " +
+          f"Nodes: ${lattice.size}%,d"
+      )
+    }
+    Files.createDirectories(Paths.get(binaryFilename).getParent)
+    lattice.save(binaryFilename)
 }
-
 
 class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
-  val sentenceFilename = "resources/sentences/sentences-tr.txt"
-  val windowSize = 3;
-  val avg = true
   val noCVA = false
   val startDistance = 0.50
   val endDistance = 0.51

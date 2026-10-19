@@ -81,14 +81,14 @@ object Tester {
     ))
     val fastA = cvafca.Instance("fast-a", numeric.BFloatTensors(Seq(1.0f, 1.0f)))
     val fastB = cvafca.Instance("fast-b", numeric.BFloatTensors(Seq(1.0f, 1.0f)))
-    val fastFirst = fast.addIntentFast(fastA)
-    val fastSecond = fast.addIntentFast(fastB)
+    val fastFirst = fast.fastAddIntent(fastA)
+    val fastSecond = fast.fastAddIntent(fastB)
     assert(fast.size == 1)
     assert(fastFirst.id == fastSecond.id)
     assert(fastSecond.symbols == Set("fast-a", "fast-b"))
     fast.validate()
 
-    val fastRepeat = fast.addIntentFast(fastB)
+    val fastRepeat = fast.fastAddIntent(fastB)
     assert(fast.size == 1)
     assert(fastRepeat.id == fastSecond.id)
   }

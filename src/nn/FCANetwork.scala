@@ -38,10 +38,6 @@ class FCANetwork( lambda1:Float, lambda2:Float,
     dot / torch.clamp ((normA * normB), Some(eps), None)
   }
 
-  def euclidNorm(a:Tensor[Float32]):Tensor[Float32]={
-   torch.sqrt(torch.sum(torch.square(a)))
-  }
-
   def robustLoss(predicted: Tensor[Float32], target: Tensor[Float32]): Tensor[Float32] = {
     val absDiff = torch.abs(predicted - target)
     val linear = torch.clamp(absDiff - huberDelta, Some(0.0), None)

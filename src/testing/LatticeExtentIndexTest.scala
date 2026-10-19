@@ -1,7 +1,5 @@
 package cvafca
 
-import numeric.BFloatTensors.*
-
 /** Run with cvafca.LatticeExtentIndexTest. */
 object LatticeExtentIndexTest:
   def main(args: Array[String]): Unit =

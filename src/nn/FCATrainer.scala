@@ -6,9 +6,7 @@ import torch.{Float32, Tensor}
 
 import java.io.{BufferedInputStream, DataInputStream, FileInputStream}
 import java.nio.file.{AtomicMoveNotSupportedException, Files, Path, Paths, StandardCopyOption}
-import scala.collection.mutable
 import scala.util.Using
-import scala.util.Random
 import scala.util.control.NonFatal
 
 class FCATrainer(
@@ -246,7 +244,7 @@ class FCATrainer(
       }
 
     val checkpointNetwork = newNetwork()
-    var network =
+    val network =
       try
         loadModel(checkpointNetwork) match
           case Some(path) =>
@@ -303,7 +301,6 @@ class FCATrainer(
     var skippedPairs = 0L
     var nonFinitePairs = 0L
     var processedPairs = 0L
-    var totalLoss = 0.0
     var lastLoss = Double.NaN
     var lastGradNorm = Double.NaN
     var consecutiveNonFiniteBatches = 0
@@ -320,7 +317,6 @@ class FCATrainer(
             f"exceeds limit=$maxParameterAbs%.6f."
         )
       val percentage = if totalPairs == 0 then 100.0 else processedPairs * 100.0 / totalPairs
-      val averageLoss = if trainedPairs == 0 then Double.NaN else totalLoss / trainedPairs
       println(
         f"FCA network: device=$device%s | batch size=$batchSize%d | epoch=$epoch%d/$epochs%d | " +
           f"progress=$processedPairs%,d/$totalPairs%,d ($percentage%6.2f%%) | trained=$trainedPairs%,d | " +
@@ -376,7 +372,6 @@ class FCATrainer(
                   trainedPairs += samples
                   epochPairs += samples
                   epochLoss += lossValue * samples
-                  totalLoss += lossValue * samples
                   lastLoss = lossValue
                   lastGradNorm = gradNorm
                   consecutiveNonFiniteBatches = 0

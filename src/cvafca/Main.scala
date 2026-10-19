@@ -25,7 +25,7 @@ package cvafca
   )
 
   data.foreach { x =>
-    val objectConcept = lattice.addIntent(x)
+    val objectConcept = lattice.fastAddIntent(x)
     println(s"\nInserted: ${x.symbol}; object concept = ${objectConcept.id}")
     println(lattice.describe())
     lattice.validate()

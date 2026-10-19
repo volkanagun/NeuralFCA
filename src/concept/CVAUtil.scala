@@ -43,19 +43,6 @@ object CVAUtil {
     (residual, math.sqrt(coefficient.scalar.toDouble))
   }
   
-  /** Returns an identity projection and the element-wise sample mean. */
-  def compute_avg(tensors: Array[Tensor[BFloat16]]): (Tensor[BFloat16], Tensor[BFloat16]) = {
-    val reference = tensors.head
-    
-    val average = numeric.BFloatTensors.average(tensors.toSeq)
-    val identity = torch.eye(
-      reference.numel.toInt,
-      dtype = torch.float32,
-      device = reference.device
-    )
-    (identity.to(torch.bfloat16), average)
-  }
-  
   def compute(
       tensors: Array[Tensor[BFloat16]]
   ): (Tensor[BFloat16], Tensor[BFloat16]) = numeric.BFloatTensors.scopedPair {

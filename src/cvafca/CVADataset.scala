@@ -1,12 +1,9 @@
 package cvafca
 
 
-import torch.Device
-
 import java.io.{FilterInputStream, InputStream}
 import java.nio.file.{Files, Paths}
 import java.util.Locale
-import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
 import scala.io.Source
 
 final class Tokenizer {
@@ -19,7 +16,7 @@ final class Tokenizer {
   }
 }
 
-class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000, val targetVocab: Set[String] = Set()) {
+class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000) {
   require(size > 0, "Batch size must be greater than zero")
 
   private final class CountingInputStream(input: InputStream) extends FilterInputStream(input) {
@@ -106,7 +103,7 @@ class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000
     val source = Source.fromFile(filename, "UTF-8")
 
     try
-      source.getLines().zipWithIndex.filter { case (line, index) => index >= start }
+      source.getLines().zipWithIndex.filter { case (_, index) => index >= start }
         .map { case (line, index) =>
         val embedding = parseEmbedding(line, index.toLong + 1, device)
         embedding.symbol -> embedding.vector
@@ -130,116 +127,6 @@ class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000
     torch.cat(tensors.map(_.flatten).toSeq)
   }
 
-
-  def read(embeddingFile: String, filename: String, windowSize: Int, device: torch.Device): Iterator[Array[Instance]] = {
-    val tokenizer = new Tokenizer()
-    val map = readEmbeddingMap(embeddingFile, device)
-    val dimensions = map.head._2.shape(0)
-    Source.fromFile(filename).getLines().take(limit).sliding(size, size).flatMap(sentences => {
-      sentences.map(sentence => tokenizer.tokenize(sentence))
-        .filter(tokens => tokens.length >= windowSize && tokens.forall(token => map.contains(token)))
-        .filter(tokens => targetVocab.isEmpty || tokens.exists(token => targetVocab.contains(token)))
-        .map(tokens => {
-          tokens.sliding(windowSize, 1)
-            .map(tokens => {
-              val tokenIndex = (windowSize - 1)
-              val tokenModifier = tokens.take(windowSize - 1)
-              (tokens(tokenIndex), tokenModifier.map(token => map(token)))
-            })
-            .map((token, vectors) => Instance(token, concatVectors(vectors))).toArray
-        })
-    })
-  }
-
-  def read(embeddingFile: String, filename: String, device: torch.Device): Iterator[Array[Instance]] = {
-    val tokenizer = new Tokenizer()
-    val map = readEmbeddingMap(embeddingFile, device)
-    val dimensions = map.head._2.shape(0)
-    map.toArray.sliding(size, size).map(tokens => tokens.map((token, embedding) => {
-      Instance(token, embedding)
-    }))
-
-  }
-
-  def read_avg(embeddingFile: String, filename: String, windowSize: Int, device: torch.Device): Iterator[Array[Instance]] = {
-    val tokenizer = new Tokenizer()
-    println(s"Dataset read_avg: loading embeddings from $embeddingFile...")
-    val embeddings = readEmbeddingMap(embeddingFile, device)
-    println(s"Dataset read_avg: loaded ${embeddings.size} embeddings; reading $filename (limit=$limit)...")
-    val totalBytes = Files.size(Paths.get(filename))
-    val input = new CountingInputStream(Files.newInputStream(Paths.get(filename)))
-    val source = Source.fromInputStream(input, "UTF-8")
-    val batches = source.getLines().sliding(size, size)
-
-    new Iterator[Array[Instance]] {
-      private val startedAt = System.nanoTime()
-      private var lastProgressAt = startedAt
-      private var sentenceCount = 0L
-      private var instanceCount = 0L
-      private var closed = false
-
-      private def reportProgress(complete: Boolean = false): Unit = {
-        val now = System.nanoTime()
-        if complete || now - lastProgressAt >= 1000000L then
-          val readBytes = math.min(input.bytesRead, totalBytes)
-          val percentage = if totalBytes == 0 then 100.0 else readBytes * 100.0 / totalBytes
-          val elapsed = (now - startedAt) / 1e9
-          val status = if complete then "complete" else "reading"
-          println(
-            f"Dataset read_avg: $status | sentences=$sentenceCount%,d | instances=$instanceCount%,d | " +
-              f"$percentage%6.2f%% | ${readBytes / 1048576.0}%.1f / ${totalBytes / 1048576.0}%.1f MiB | " +
-              f"elapsed=$elapsed%.1fs"
-          )
-          lastProgressAt = now
-      }
-
-      private def close(): Unit =
-        if !closed then
-          closed = true
-          source.close()
-
-      override def hasNext: Boolean =
-        if closed then false
-        else
-          try
-            val available = batches.hasNext && sentenceCount < limit
-            if !available then
-              reportProgress(complete = true)
-              close()
-            available
-          catch
-            case error: Throwable =>
-              close()
-              throw error
-
-      override def next(): Array[Instance] =
-        if !hasNext then Iterator.empty.next()
-        else
-          try
-            val sentences = batches.next()
-            val instances = sentences.toArray.par.map(tokenizer.tokenize)
-              .filter(tokens => tokens.length >= windowSize && tokens.forall(token => embeddings.contains(token)))
-              .filter(tokens => targetVocab.isEmpty || tokens.exists(token => targetVocab.contains(token)))
-              .flatMap(tokens => {
-                tokens.sliding(windowSize, 1).map(tokens => {
-                  val tokenIndex = windowSize - 1
-                  val tokenModifiers = tokens.take(windowSize - 1)
-                  val token = tokens(tokenIndex)
-                  val tokenEmbedding = embeddings(token)
-                  val averageBias = concatVectors(Iterable(tokenEmbedding, averageVectors(tokenModifiers.map(tok => embeddings(tok)))))
-                  Instance(token, averageBias)
-                }).toArray
-              }).toArray
-            sentenceCount += sentences.size
-            instanceCount += instances.length
-            reportProgress()
-            instances
-          catch
-            case error: Throwable =>
-              close()
-              throw error
-    }
-  }
 
   def read(filename: String, device: torch.Device): Iterator[Array[Instance]] = {
     val path = Paths.get(filename)

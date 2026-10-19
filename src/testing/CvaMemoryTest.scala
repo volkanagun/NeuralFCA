@@ -1,10 +1,9 @@
 package testing
 
 import numeric.BFloatTensors.*
-import cvafca.{CVA, CvaConfig, Instance, Lattice, Node}
+import cvafca.{CVA, CvaConfig, Instance, Lattice}
 import org.bytedeco.javacpp.{Pointer, PointerScope}
 
-import scala.collection.mutable
 import scala.util.{Random, Using}
 
 /** Exercise training's scalar distance path without an enclosing pointer scope. */
@@ -21,19 +20,17 @@ object CvaMemoryTest:
       val expected = cva.distance(model, query)
       if !noCVA then assert(math.abs(expected - 0.5) < 1e-6)
       val lattice = new Lattice(cva)
-      val node = lattice.targetNode(mutable.HashMap.empty[Set[String], Node],
-        samples.zipWithIndex.map((sample, index) => Instance(s"word$index", sample)).toList)
+      val node = lattice.fastAddIntent(
+        samples.zipWithIndex.map((sample, index) => Instance(s"word$index", sample)))
       val incoming = Instance("query", query)
       val expectedIncoming = node.distance(query)
-      val cache = mutable.HashMap.empty[Long, Double]
       val before = Pointer.totalCount()
       val bytesBefore = Pointer.totalBytes()
       for _ <- 0 until 1000 do
         assert(cva.distance(model, query) == expected)
         cva.classifies(model, query)
-        cache.clear()
-        assert(lattice.incomingDistance(cache, node, incoming) == expectedIncoming)
-        assert(lattice.incomingDistance(cache, node, incoming) == expectedIncoming)
+        assert(node.distance(incoming.vector) == expectedIncoming)
+        node.classifies(incoming)
       val after = Pointer.totalCount()
       assert(after <= before, s"Distance pointers accumulated (noCVA=$noCVA): $before -> $after")
       assert(Pointer.totalBytes() <= bytesBefore)

@@ -2,8 +2,7 @@
 
 Use `lattice.fastAddIntent(instance)` for one symbol, or
 `lattice.fastAddIntent(instances)` to insert one intent fitted from several
-embeddings. The existing `addIntentFast`, `addIntentFastIndexed` and `original`
-methods retain their earlier behavior.
+embeddings.
 
 This adapts the closure lookup, recursive intersection insertion and cover
 repair of Zou, Zhang and Long's
@@ -91,5 +90,4 @@ intersections, frontier duplicate discovery, overlapping CVA/average-mode
 insertions at three coverage thresholds, and checkpoint continuation.
 `cvafca.LatticeClosureSearchTest` checks upward/downward traversal, full predicate
 verification after probing, serial/parallel model and topology agreement, execution
-inside a fork-join worker, exact matches outside tiny search limits, and frontier
-maintenance by the iterative insertion engine.
+inside a fork-join worker, and exact matches outside tiny search limits.
