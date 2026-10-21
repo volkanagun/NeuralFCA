@@ -25,21 +25,37 @@ The learned operations are:
 * **Equivalence:** each classifier must accept at least `equalityCoverage` of
   the **other** node's extent. Both directions must pass. The optional existing
   `requireMutualCommonClassification` setting additionally checks both common
-  vectors. Exact symbolic extent matches still require this CVA check.
+  vectors. Symbol equality does not participate in candidate selection or
+  equivalence.
 
-Closure and equivalence discovery share a graph beam search. Exact extent lookup
-still runs first and requires full CVA equivalence. Recursive searches start from
-their supplied generator, descending when it contains the requested extent and
-otherwise walking upward. Searches without a generator start at the smaller of
-the indexed top and bottom frontiers. There is no full-lattice closure derivation,
-vocabulary collection, root scan, or global equivalence fallback.
+Closure and approximate-extent discovery share a graph beam search based on CVA
+distance and classification. Recursive searches start from their supplied
+generator, descending when it contains the requested extent and otherwise walking
+upward. Searches without a generator start at the smaller of the indexed top and
+bottom frontiers. There is no symbol-based extent lookup, full-lattice closure
+derivation, vocabulary collection, root scan, or global equivalence fallback.
+
+Incremental node IDs are immutable storage addresses only. Inclusion and
+equivalence never use ID equality: mutual CVA coverage determines equivalence.
+Temporary intersection targets are canonicalized by embedding identity during an
+insertion. When no equivalent exists, every discovered minimal node that classifies
+the requested extent becomes a parent; broader classifying nodes are omitted when
+a more specific classifying candidate exists.
+
+Symbolic extents are structurally unique. Reinserting an identical symbol set
+reuses its existing node before CVA equivalence search, then classifies the
+incoming embedding against every other node. Minimal classifiers become parents
+of the canonical node and its extent propagates through them. If propagation makes
+two nodes acquire the same symbol set, the earlier node remains canonical,
+external edges are rewired to it, and the duplicate node is removed.
 
 Candidates are ranked by CVA distance to the first, middle and last requested
 embeddings, deduplicated by tensor identity. Common vectors from different
 projections are not used as search coordinates. These probes only guide traversal:
 each retained equivalent node must pass both complete coverage predicates, and
-each generator must classify every requested embedding. Closest candidates expand
-through children or parents in layers, with deterministic distance/size/ID ordering.
+each generator must classify every requested embedding. All measured candidates
+are verified; the closest beam expands through children or parents in layers, with
+deterministic distance/size/ID ordering.
 
 | Setting | Default | Purpose |
 | --- | ---: | --- |
@@ -90,4 +106,4 @@ intersections, frontier duplicate discovery, overlapping CVA/average-mode
 insertions at three coverage thresholds, and checkpoint continuation.
 `cvafca.LatticeClosureSearchTest` checks upward/downward traversal, full predicate
 verification after probing, serial/parallel model and topology agreement, execution
-inside a fork-join worker, and exact matches outside tiny search limits.
+inside a fork-join worker, and embedding-equivalent extents with different symbols.

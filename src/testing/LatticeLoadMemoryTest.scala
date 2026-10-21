@@ -46,7 +46,7 @@ object LatticeLoadMemoryTest:
             out.writeInt(values.length)
             values.foreach(out.writeFloat)
           out.writeInt(0x43564146)
-          out.writeInt(2)
+          out.writeInt(3)
           out.writeInt(dimension)
           out.writeLong(count.toLong)
           out.writeInt(count)
@@ -58,7 +58,6 @@ object LatticeLoadMemoryTest:
             if index == count - 2 then projection(1) = 0.00006103515625f
             if index == count - 1 then projection(1) = -0.0f
             tensor(Seq(dimension, dimension), projection)
-            out.writeDouble(0.125)
             out.writeInt(1)
             out.writeUTF(s"word$index")
             tensor(Seq(dimension), Array.fill(dimension)(index.toFloat))
@@ -77,7 +76,8 @@ object LatticeLoadMemoryTest:
           assert(lattice.node(0).projection.asInstanceOf[AnyRef] eq lattice.node(1).projection)
           assert(!(lattice.node(0).projection.asInstanceOf[AnyRef] eq lattice.node(count - 2).projection))
           assert(!(lattice.node(0).projection.asInstanceOf[AnyRef] eq lattice.node(count - 1).projection))
-          assert(lattice.nodes.forall(_.classificationRadius == 0.125))
+          assert(lattice.nodes.forall(
+            _.classificationRadius == lattice.cva.config.classificationThreshold))
           assert(lattice.node(1).distance(lattice.node(1).instances.head.vector) == 0.0)
           lattice.save(saved.toString)
           assert(Files.readAllBytes(source).sameElements(Files.readAllBytes(saved)))

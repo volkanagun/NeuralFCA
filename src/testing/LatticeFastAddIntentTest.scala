@@ -54,6 +54,33 @@ object LatticeFastAddIntentTest:
     assert(lattice.fastAddIntent(alias).id == reused.id && lattice.size == 4)
     lattice.validate()
 
+    // An identical symbolic extent is canonical even when a repeated symbol is
+    // supplied with an embedding that its stored node does not classify.
+    val symbolic = new Lattice(new CVA(2, CvaConfig(0.01, 1.0)))
+    val symbolicFirst = symbolic.fastAddIntent(sample("same-symbol", 0f, 0f))
+    val symbolicRepeat = symbolic.fastAddIntent(sample("same-symbol", 40f, 40f))
+    assert(symbolicRepeat.id == symbolicFirst.id && symbolic.size == 1)
+    symbolic.validate()
+
+    // Reusing an exact symbolic extent still performs FCA placement. A
+    // disconnected classifier becomes its parent and receives the instance.
+    val repositionFixture = new Lattice(cva):
+      val point = new Node(100L, Vector(sample("existing-point", 4f, 0f)), this.cva,
+        do_avg = false)
+      val containingLine = new Node(101L,
+        Vector(sample("line-left", 0f, 0f), sample("line-right", 8f, 0f)),
+        this.cva, do_avg = false)
+      nodeMap.put(point.id, point)
+      nodeMap.put(containingLine.id, containingLine)
+    val repositioned = repositionFixture.cloneLattice()
+    val existingPoint = repositioned.node(100L)
+    val repeatedPoint = repositioned.fastAddIntent(sample("existing-point", 4f, 0f))
+    assert(repeatedPoint eq existingPoint)
+    assert(repeatedPoint.parents.toSet == Set(101L))
+    assert(repositioned.node(101L).containsSymbol("existing-point"))
+    assert(repositioned.size == 2)
+    repositioned.validate()
+
     // One-way classification does not establish equivalence, even at 50%.
     val asymmetric = new Lattice(cva, LatticeConfig(equalityCoverage = 0.5))
     val line = asymmetric.fastAddIntent(horizontal)

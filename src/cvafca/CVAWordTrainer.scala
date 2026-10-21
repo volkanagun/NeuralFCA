@@ -13,6 +13,14 @@ class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
   val cvaDataset = new CVADataset(batchSize, start, limit)
   val binaryFilename = "resources/binary/fca-cva.bin"
 
+
+  def printNodes(lattice: Lattice, sz: Int, cnt: Int): Unit = {
+    scala.util.Random.shuffle(lattice.nodes.filter(node => node.size > sz))
+      .take(cnt).foreach(node => println(node.symbols.mkString("[", ",", "]")))
+
+
+  }
+
   def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
     // Lattice mutation is serialized; scoring owns the worker parallelism.
     nativeTorch.set_num_threads(1)
@@ -25,8 +33,13 @@ class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
     val startedAt = System.nanoTime()
     var processed = 0L
     loads.sliding(parallelSize, parallelSize).foreach { parallelBatch =>
-      parallelBatch.foreach(batch => lattice.fastAddIntent(batch))
+      parallelBatch.foreach(batch => batch.foreach(instance => {
+        lattice.fastAddIntent(instance)
+      }))
+
+      printNodes(lattice, 3, 2)
       processed += parallelBatch.iterator.map(_.size.toLong).sum
+
       val elapsedSeconds = (System.nanoTime() - startedAt) / 1_000_000_000L
       val hours = elapsedSeconds / 3600
       val minutes = (elapsedSeconds % 3600) / 60
@@ -40,23 +53,23 @@ class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
     lattice.save(binaryFilename)
 }
 
-class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
+class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
 
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
   val noCVA = false
-  val startDistance = 0.50
-  val endDistance = 0.51
+  val startDistance = 0.52
+  val endDistance = 0.63
 
-  def train(crrDistance:Double): Unit = {
+  def train(crrDistance: Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)
-    trainer.train(embeddingFilename,noCVA, crrDistance)
+    trainer.train(embeddingFilename, noCVA, crrDistance)
   }
 
-  def incremental(startDistance:Double, endDistance:Double): Unit = {
+  def incremental(startDistance: Double, endDistance: Double): Unit = {
     var crrDistance = startDistance
 
-    while(crrDistance < endDistance){
+    while (crrDistance < endDistance) {
       train(crrDistance)
       crrDistance += 0.01
     }
@@ -71,9 +84,8 @@ class CVAWordIncremental(val start:Int, val limit:Int, val dim:Int = 300) {
 
 object CVAWordMain {
   def main(args: Array[String]): Unit = {
-    for (i<-0 until 260000 by 20000){
-      new CVAWordIncremental(i, 20000).train()
-      System.gc()
-    }
+    val max = 500000
+    new CVAWordIncremental(0, max).train()
+
   }
 }

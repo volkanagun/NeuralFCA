@@ -26,10 +26,10 @@ object LatticePersistenceTest:
         out.writeLong(1L)
         out.writeInt(1)
         out.writeLong(0L)
-        if version == 2 then
+        if version >= 2 then
           tensor(Seq(2), Seq(firstValue, 8f))
           tensor(Seq(2, 2), Seq(0.25f, 0f, 0f, 0.5f))
-          out.writeDouble(0.125)
+          if version == 2 then out.writeDouble(0.125)
         out.writeInt(1)
         out.writeUTF("sample")
         tensor(Seq(2), Seq(1f, 2f))
@@ -38,7 +38,7 @@ object LatticePersistenceTest:
       }
 
     try
-      fixture(2)
+      fixture(3)
       val original = new Lattice(cva).load(source.toString)
       original.save(saved.toString)
       val restored = new Lattice(cva).load(saved.toString)
@@ -46,15 +46,18 @@ object LatticePersistenceTest:
       assert(node.commonVector.floatValues.sameElements(Array(7f, 8f)))
       assert(node.projection.shape.sameElements(Array(2, 2)))
       assert(node.projection.floatValues.sameElements(Array(0.25f, 0f, 0f, 0.5f)))
-      assert(node.classificationRadius == 0.125)
+      assert(node.classificationRadius == cva.config.classificationThreshold)
       assert(node.instances.head.vector.floatValues.sameElements(Array(1f, 2f)))
       assert(Files.readAllBytes(source).sameElements(Files.readAllBytes(saved)))
-      fixture(2, 0.1f)
+      fixture(3, 0.1f)
       val quantized = new Lattice(cva).load(source.toString)
       assert(quantized.node(0L).commonVector.dtype == torch.bfloat16)
       assert(quantized.node(0L).commonVector.floatValues.head == 0.10009765625f)
       quantized.save(saved.toString)
       assert(new Lattice(cva).load(saved.toString).node(0L).commonVector.floatValues.head == 0.10009765625f)
+      fixture(2)
+      assert(new Lattice(cva).load(source.toString).node(0L).classificationRadius ==
+        cva.config.classificationThreshold)
       val completeCheckpoint = Files.readAllBytes(saved)
       quantized.node(0L).addInstance(
         Instance("x" * 65536, numeric.BFloatTensors(Seq(1f, 2f)))

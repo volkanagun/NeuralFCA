@@ -79,6 +79,26 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
 
     CvaModel(commonVector, projection, radius)
 
+  /** Restore persisted model tensors while deriving the runtime radius from the
+    * active configuration and the node's stored training samples.
+    */
+  def restore(
+      commonVector: Tensor[BFloat16],
+      projection: Tensor[BFloat16],
+      samples: Iterable[Tensor[BFloat16]]
+  ): CvaModel =
+    val tensors = samples.toArray
+    require(tensors.nonEmpty, "CVA.restore requires at least one sample")
+    tensors.foreach(validate)
+    validate(commonVector)
+    val provisional = CvaModel(commonVector, projection, radius = 0.0)
+    val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
+    val radius = math.max(
+      config.classificationThreshold,
+      maxTrainingResidual * config.trainingRadiusScale
+    )
+    CvaModel(commonVector, projection, radius)
+
   /** Refit after an extent change. */
   def update(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     if config.noCVA then update_avg(samples)

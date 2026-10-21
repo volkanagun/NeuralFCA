@@ -62,138 +62,109 @@ class Lattice(
   require(config.closureSearchFrontier > 0)
   require(config.closureSearchBeamWidth > 0)
   private val nextId = new AtomicLong(0L)
+
+  /** Node IDs are immutable storage addresses, never semantic identities. */
   /** Protected so alternative insertion engines can reuse the same lattice state. */
   protected val nodeMap: mutable.Map[Long, Node] = new NodeStore
 
-  /** Preserve insertion order while tracking membership changes in one place,
-    * including additions by alternative insertion engines and checkpoint loads.
-    */
+  /** Preserve insertion order while maintaining the graph frontiers, including
+   * additions by alternative insertion engines and checkpoint loads.
+   */
   private final class NodeStore extends mutable.AbstractMap[Long, Node]:
     private val entries = mutable.LinkedHashMap.empty[Long, Node]
+
     override def get(id: Long): Option[Node] = entries.get(id)
+
     override def iterator: Iterator[(Long, Node)] = entries.iterator
+
     override def valuesIterator: Iterator[Node] = entries.valuesIterator
+
     override def keysIterator: Iterator[Long] = entries.keysIterator
+
     override def size: Int = entries.size
+
     override def knownSize: Int = entries.size
+
     override def put(id: Long, node: Node): Option[Node] =
       val previous = entries.put(id, node)
       if !previous.exists(_ eq node) then
-        trackStoredNode(node)
+        previous.foreach(_.extentChanged = None)
+        trackSymbolExtent(node)
         if node.parents.isEmpty then topNodeIds += id else topNodeIds -= id
         if node.children.isEmpty then bottomNodeIds += id else bottomNodeIds -= id
       previous
-    override def update(id: Long, node: Node): Unit = { put(id, node); () }
+
+    override def update(id: Long, node: Node): Unit = {
+      put(id, node); ()
+    }
+
     override def addOne(entry: (Long, Node)): this.type =
       put(entry._1, entry._2)
       this
+
     override def remove(id: Long): Option[Node] =
       val previous = entries.remove(id)
       if previous.nonEmpty then
-        removeIndexedNode(id)
+        removeSymbolExtent(id)
         topNodeIds -= id
         bottomNodeIds -= id
       previous
+
     override def subtractOne(id: Long): this.type =
       remove(id)
       this
+
     override def clear(): Unit =
-      invalidateExtentIndexes()
+      clearSymbolExtents()
       entries.clear()
       topNodeIds.clear()
       bottomNodeIds.clear()
+
   /** Childless-node IDs with constant-time insertion/removal and bounded iteration. */
   private val bottomNodeIds = mutable.LinkedHashSet.empty[Long]
   /** Parentless-node IDs, maintained with the bottom frontier for closure search. */
   private val topNodeIds = mutable.LinkedHashSet.empty[Long]
-  // FastAddExtent-style exact lookup. Keys are immutable symbol snapshots;
-  // tree keys preserve nodeMap order even when two mutable extents converge.
-  private final class ExtentKey(val symbols: Set[String]):
-    // Scala set hashes traverse their members. Reuse the hash when a snapshot
-    // is looked up, inserted, or removed; equality still checks the full set.
-    private val cachedHash = symbols.hashCode()
-    override def hashCode(): Int = cachedHash
-    override def equals(other: Any): Boolean = other match
-      case key: ExtentKey => (symbols eq key.symbols) || symbols == key.symbols
-      case _ => false
+  /** Exact symbolic extents enforce structural uniqueness only. CVA predicates
+   * remain authoritative for equivalence between different symbol sets.
+   */
+  private val symbolExtentIndex = mutable.HashMap.empty[Set[String], mutable.LinkedHashSet[Long]]
+  private val indexedSymbolExtents = mutable.LongMap.empty[Set[String]]
+  private val dirtySymbolExtents = mutable.LinkedHashSet.empty[Long]
 
-  private val extentIndex = mutable.HashMap.empty[ExtentKey, mutable.TreeMap[Long, Node]]
-  private final class IndexedNode(val order: Long, var node: Node, var key: Option[ExtentKey] = None)
-  private val indexedNodes = mutable.LongMap.empty[IndexedNode]
-  private val dirtyIndexIds = mutable.LinkedHashSet.empty[Long]
-  private var indexesReady = false
-  private var nextIndexOrder = 0L
+  private def trackSymbolExtent(node: Node): Unit =
+    removeSymbolExtent(node.id)
+    node.extentChanged = Some(() => dirtySymbolExtents += node.id)
+    dirtySymbolExtents += node.id
 
-  private def markIndexDirty(id: Long): Unit =
-    dirtyIndexIds += id
-
-  private def trackStoredNode(node: Node): Unit =
-    indexedNodes.get(node.id) match
-      case Some(entry) =>
-        entry.node.extentChanged = None
-        entry.node = node
-      case None =>
-        indexedNodes.put(node.id, new IndexedNode(nextIndexOrder, node))
-        nextIndexOrder += 1
-    node.extentChanged = Some(() => markIndexDirty(node.id))
-    markIndexDirty(node.id)
-
-  private def removeExtentKey(key: ExtentKey, order: Long): Unit =
-    extentIndex.get(key).foreach { bucket =>
-      bucket.remove(order)
-      if bucket.isEmpty then extentIndex.remove(key)
-    }
-
-  private def removeIndexedNode(id: Long): Unit =
-    indexedNodes.remove(id).foreach { entry =>
-      entry.node.extentChanged = None
-      entry.key.foreach(removeExtentKey(_, entry.order))
-    }
-    dirtyIndexIds -= id
-
-  private def indexExtent(entry: IndexedNode, key: ExtentKey): Unit =
-    entry.key.filterNot(_ eq key).foreach(removeExtentKey(_, entry.order))
-    extentIndex.getOrElseUpdate(key, mutable.TreeMap.empty).put(entry.order, entry.node)
-    entry.key = Some(key)
-
-  private def invalidateExtentIndexes(): Unit =
-    indexedNodes.valuesIterator.foreach(_.node.extentChanged = None)
-    extentIndex.clear()
-    indexedNodes.clear()
-    dirtyIndexIds.clear()
-    indexesReady = false
-    nextIndexOrder = 0L
-
-  private def ensureExtentIndexes(): Unit =
-    if dirtyIndexIds.nonEmpty then
-      // Every store/mutation queues an ID once. Do not scan or rehash unchanged
-      // nodes, even when additions changed nodeMap.size since the last lookup.
-      val snapshot = dirtyIndexIds.iterator.map(indexedNodes).toArray
-      if !indexesReady then extentIndex.sizeHint(snapshot.length)
-      // Only immutable symbol hashing runs on workers. Publish index changes
-      // sequentially; stable order keys retain the nodeMap insertion priority.
-      val totalSymbols = snapshot.iterator.map(_.node.size.toLong).sum
-      def currentKey(entry: IndexedNode): ExtentKey =
-        entry.key.filter(key => key.symbols eq entry.node.symbols)
-          .getOrElse(new ExtentKey(entry.node.symbols))
-      val keys =
-        if snapshot.length >= 4096 && totalSymbols >= 1048576L then
-          val parallelSnapshot = snapshot.par
-          parallelSnapshot.tasksupport = Lattice.parallelIndexTaskSupport
-          parallelSnapshot.map(currentKey).toArray
-        else snapshot.map(currentKey)
-      snapshot.indices.foreach { index =>
-        val entry = snapshot(index)
-        indexExtent(entry, keys(index))
-        dirtyIndexIds -= entry.node.id
+  private def removeSymbolExtent(id: Long): Unit =
+    indexedSymbolExtents.remove(id).foreach { key =>
+      symbolExtentIndex.get(key).foreach { ids =>
+        ids -= id
+        if ids.isEmpty then symbolExtentIndex -= key
       }
-    indexesReady = true
+    }
+    dirtySymbolExtents -= id
 
-  private def exactExtent(symbols: Set[String]): Option[Node] =
-    if indexesReady then ensureExtentIndexes()
-    if indexesReady then extentIndex.get(new ExtentKey(symbols)).flatMap(_.headOption.map(_._2))
-    else nodeMap.valuesIterator.find(existing =>
-      existing.size == symbols.size && symbols.forall(existing.containsSymbol))
+  private def clearSymbolExtents(): Unit =
+    nodeMap.valuesIterator.foreach(_.extentChanged = None)
+    symbolExtentIndex.clear()
+    indexedSymbolExtents.clear()
+    dirtySymbolExtents.clear()
+
+  private def refreshSymbolExtents(): Unit =
+    val dirty = dirtySymbolExtents.toVector
+    dirty.foreach { id =>
+      removeSymbolExtent(id)
+      nodeMap.get(id).foreach { node =>
+        val key = node.symbols
+        symbolExtentIndex.getOrElseUpdate(key, mutable.LinkedHashSet.empty) += id
+        indexedSymbolExtents.put(id, key)
+      }
+    }
+
+  private def exactSymbolExtent(symbols: Set[String]): Option[Node] =
+    refreshSymbolExtents()
+    symbolExtentIndex.get(symbols).flatMap(_.iterator.flatMap(nodeMap.get).nextOption())
 
   private def rebuildFrontierIndexes(): Unit =
     bottomNodeIds.clear()
@@ -219,11 +190,11 @@ class Lattice(
   def size = nodeMap.size
 
   /** Create an independently mutable structural clone.
-    *
-    * Node containers, extents, and edges are copied. Instance vectors and model
-    * tensors are shared as read-only values; subsequent refits replace a clone's
-    * model rather than modifying those tensors in place.
-    */
+   *
+   * Node containers, extents, and edges are copied. Instance vectors and model
+   * tensors are shared as read-only values; subsequent refits replace a clone's
+   * model rather than modifying those tensors in place.
+   */
   def cloneLattice(): Lattice = this.synchronized {
     val cloned = new Lattice(cva, config, c_device)
     nodeMap.foreach { case (id, source) =>
@@ -272,29 +243,28 @@ class Lattice(
     closure.toSet
 
   /** FastAddIntent with CVA operations in place of Boolean intent operations.
-    *
-    * Based on Zou, Zhang and Long (2015), doi:10.1016/j.eswa.2015.01.044.
-    * The order is dualized because this graph stores larger extents as parents:
-    * closure search descends from a virtual universal extent, and recursive
-    * intersections become children. Empty intersections remain virtual.
-    *
-    * Membership is Node.classifies (distance <= the model's classification
-    * radius). Inclusion requires classification of every extent member;
-    * equivalence requires equalityCoverage in BOTH directions. Symbol sets are
-    * only lookup/cache keys, never membership or equivalence tests.
-    *
-    * Closure/equivalence discovery uses a bounded graph beam search configured
-    * by closureSearchVisits, closureSearchFrontier and closureSearchBeamWidth.
-    * Candidate scores may run in parallel; accepted candidates still pass the
-    * complete CVA predicates. Recursive intersections have no depth limit.
-    * This remains a learned approximation of the paper's Boolean lattice.
-    */
+   *
+   * Based on Zou, Zhang and Long (2015), doi:10.1016/j.eswa.2015.01.044.
+   * The order is dualized because this graph stores larger extents as parents:
+   * closure search descends from a virtual universal extent, and recursive
+   * intersections become children. Empty intersections remain virtual.
+   *
+   * Membership is Node.classifies (distance <= the model's classification
+   * radius). Inclusion requires classification of every extent member;
+   * equivalence requires equalityCoverage in BOTH directions. Symbols identify
+   * and deduplicate stored examples, never membership or equivalence tests.
+   *
+   * Closure/equivalence discovery uses a bounded graph beam search configured
+   * by closureSearchVisits, closureSearchFrontier and closureSearchBeamWidth.
+   * Candidate scores may run in parallel; accepted candidates still pass the
+   * complete CVA predicates. Recursive intersections have no depth limit.
+   * This remains a learned approximation of the paper's Boolean lattice.
+   */
   def fastAddIntent(instance: Instance): Node = fastAddIntent(List(instance))
 
   /** Insert a CVA extent, rather than treating its members as separate intents. */
   def fastAddIntent(instances: Iterable[Instance]): Node = this.synchronized {
     require(instances.nonEmpty, "FastAddIntent requires a nonempty extent")
-    ensureExtentIndexes()
 
     // All predicates see fixed models AND extents until topology is complete.
     // Identity keys avoid confusing different embeddings with the same label.
@@ -302,9 +272,11 @@ class Lattice(
     var membershipEntries = 0
     val inclusion = mutable.HashMap.empty[(Long, Long), Boolean]
     val equality = mutable.HashMap.empty[(Long, Long), Boolean]
-    final case class ClosureSearch(generator: Option[Node], equivalent: Option[Node])
-    val closures = mutable.LongMap.empty[ClosureSearch]
-    val targets = mutable.HashMap.empty[Set[String], Node]
+    final case class ClosureSearch(generators: Vector[Node], equivalent: Option[Node])
+    val closures = mutable.HashMap.empty[(Node, Option[Node]), ClosureSearch]
+    val vectorIds = new java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Integer]()
+    var nextVectorId = 0
+    val targets = mutable.HashMap.empty[Set[Int], Node]
     val additions = mutable.LinkedHashMap.empty[Node, mutable.LinkedHashMap[String, Instance]]
     val created = mutable.ArrayBuffer.empty[Node]
     val linkedChildren = mutable.LinkedHashSet.empty[Node]
@@ -328,7 +300,7 @@ class Lattice(
         accepted
 
     def includes(classifier: Node, extent: Node): Boolean =
-      classifier.id == extent.id || inclusion.getOrElseUpdate((classifier.id, extent.id),
+      inclusion.getOrElseUpdate((classifier.id, extent.id),
         extent.instancesIterator.forall(accepts(classifier, _)))
 
     def enough(classifier: Node, extent: Node): Boolean =
@@ -338,19 +310,30 @@ class Lattice(
       while members.hasNext do
         if accepts(classifier, members.next()) then accepted += 1
         remaining -= 1
-        if accepted.toDouble / extent.size >= config.equalityCoverage then return true
+        if accepted.toDouble / extent.size >= config.equalityCoverage then {
+          return true
+        }
         if (accepted + remaining).toDouble / extent.size < config.equalityCoverage then return false
       false
 
     def same(left: Node, right: Node): Boolean =
       val key = (math.min(left.id, right.id), math.max(left.id, right.id))
-      left.id == right.id || equality.getOrElseUpdate(key,
+      equality.getOrElseUpdate(key,
         enough(left, right) && enough(right, left) &&
           (!config.requireMutualCommonClassification ||
             (left.classifies(right.commonVector) && right.classifies(left.commonVector))))
 
+    def vectorId(vector: Tensor[BFloat16]): Int =
+      val existing = vectorIds.get(vector)
+      if existing != null then existing.intValue()
+      else
+        val assigned = nextVectorId
+        nextVectorId += 1
+        vectorIds.put(vector, java.lang.Integer.valueOf(assigned))
+        assigned
+
     def target(members: Vector[Instance]): Node =
-      targets.getOrElseUpdate(members.iterator.map(_.symbol).toSet,
+      targets.getOrElseUpdate(members.iterator.map(member => vectorId(member.vector)).toSet,
         createNode(members))
 
     def remember(existing: Node, requested: Node): Node =
@@ -358,12 +341,14 @@ class Lattice(
       requested.instancesIterator.foreach(member => pending.getOrElseUpdate(member.symbol, member))
       existing
 
-    def childrenOf(generator: Option[Node]): Vector[Node] = generator match
-      case Some(node) => node.children.iterator.map(nodeMap).toVector
-      case None => topNodeIds.iterator.take(config.closureSearchFrontier).map(nodeMap).toVector
+    def childrenOf(generators: Vector[Node]): Vector[Node] =
+      if generators.nonEmpty then
+        val seen = mutable.HashSet.empty[Long]
+        generators.iterator.flatMap(_.children.iterator).filter(seen.add).map(nodeMap).toVector
+      else topNodeIds.iterator.take(config.closureSearchFrontier).map(nodeMap).toVector
 
     def searchClosure(requested: Node, start: Option[Node]): ClosureSearch =
-      closures.getOrElseUpdate(requested.id, {
+      closures.getOrElseUpdate((requested, start), {
         val downward = start match
           case Some(node) => includes(node, requested)
           case None => topNodeIds.size <= bottomNodeIds.size
@@ -386,7 +371,7 @@ class Lattice(
         }
         val scheduled = mutable.HashSet.empty[Long]
         val scores = mutable.LongMap.empty[Double]
-        var generator = Option.empty[Node]
+        val classifying = mutable.LinkedHashMap.empty[Long, Node]
         var equivalent = Option.empty[Node]
 
         def measure(node: Node): (Node, Double, Array[Double]) =
@@ -415,83 +400,160 @@ class Lattice(
             probes.indices.foreach(i =>
               retainAcceptance(node, probes(i), distances(i) <= node.classificationRadius))
           }
-          val beam = measured.sortBy { (node, score, _) => (score, node.size, node.id) }
-            .take(config.closureSearchBeamWidth).map(_._1)
-          val iterator = beam.iterator
+          val ordered = measured.sortBy { (node, score, _) => (score, node.size, node.id) }
+          val beam = ordered.take(config.closureSearchBeamWidth).map(_._1)
+          // Fully verify every measured candidate. Beam width limits graph
+          // expansion, not which nearby classifiers can position this extent.
+          val iterator = ordered.iterator.map(_._1)
           while iterator.hasNext && equivalent.isEmpty do
             val candidate = iterator.next()
             if same(candidate, requested) then equivalent = Some(candidate)
             else if includes(candidate, requested) then
-              val rank = (candidate.size, scores(candidate.id), candidate.id)
-              if generator.forall(old =>
-                summon[Ordering[(Int, Double, Long)]].lt(rank, (old.size, scores(old.id), old.id))) then
-                generator = Some(candidate)
+              classifying.getOrElseUpdate(candidate.id, candidate)
 
           val queued = mutable.HashSet.empty[Long]
           frontier = beam.iterator.flatMap { node =>
-            val neighbors = if downward then node.children else node.parents
-            neighbors.iterator.flatMap(nodeMap.get)
-          }.filter(node => !scheduled.contains(node.id) && queued.add(node.id))
+              val neighbors = if downward then node.children else node.parents
+              neighbors.iterator.flatMap(nodeMap.get)
+            }.filter(node => !scheduled.contains(node.id) && queued.add(node.id))
             .take(math.min(layerLimit, config.closureSearchVisits - scheduled.size)).toVector
-        ClosureSearch(generator, equivalent)
+        val candidates = classifying.valuesIterator.toVector
+        // Keep the most specific classifying nodes. A broader classifier is not
+        // a direct generator when another classified candidate is strictly below
+        // it according to the same learned predicates.
+        val generators = candidates.filterNot { broader =>
+          candidates.exists { narrower =>
+            (narrower ne broader) && includes(broader, narrower) && !same(broader, narrower)
+          }
+        }.sortBy(node => (node.size, scores.getOrElse(node.id, Double.PositiveInfinity), node.id))
+        ClosureSearch(generators, equivalent)
       })
 
     def findEquivalent(requested: Node, start: Option[Node]): Option[Node] =
-      // An exact symbol key remains a fast path, subject to full CVA equality.
-      exactExtent(requested.symbols).filter(same(_, requested))
-        .orElse(searchClosure(requested, start).equivalent)
+      // Equivalence is learned from embedding extents. Symbols identify stored
+      // examples, while IDs only address stored nodes and cache predicate results.
+      searchClosure(requested, start).equivalent
 
-    def getClosureConcept(requested: Node, start: Option[Node]): Option[Node] =
-      searchClosure(requested, start).generator
+    def getClosureConcepts(requested: Node, start: Option[Node]): Vector[Node] =
+      searchClosure(requested, start).generators
 
     def connect(parent: Node, child: Node): Boolean =
       // Numerical inclusion is not transitive. Do not introduce a graph cycle
       // or a redundant edge when the child is already reachable.
-      if parent.id == child.id || ancestorClosure(parent).contains(child.id) then false
+      if (parent eq child) || ancestorClosure(parent).contains(child.id) then false
       else
         if !ancestorClosure(child).contains(parent.id) then
           linkFast(parent, child)
           linkedChildren += child
         true
 
+    def repositionCanonical(canonical: Node, requested: Node): Node =
+      // Exact symbolic reuse must still perform FCA insertion for the incoming
+      // embedding. Search every current node here: duplicate insertion is the
+      // recovery path that repairs any classifications missed by bounded search.
+      val classifying = mutable.ArrayBuffer.empty[Node]
+      nodeMap.valuesIterator.filterNot(_ eq canonical).foreach { candidate =>
+        if same(candidate, requested) then remember(candidate, requested)
+        else if includes(candidate, requested) then classifying += candidate
+      }
+
+      val minimal = classifying.filterNot { broader =>
+        classifying.exists { narrower =>
+          (narrower ne broader) && includes(broader, narrower) && !same(broader, narrower)
+        }
+      }.sortBy(node => (node.size, node.id))
+
+      minimal.foreach { parent =>
+        // A newly discovered, more specific parent replaces any broader direct
+        // parent that already contains it according to the learned predicates.
+        canonical.parents.iterator.flatMap(nodeMap.get).filter { broader =>
+          (broader ne parent) && includes(broader, parent) && !same(broader, parent)
+        }.toVector.foreach(unlink(_, canonical))
+        connect(parent, canonical)
+      }
+      // Seed propagation even when every required edge already existed, so a
+      // loaded or previously incomplete ancestor receives the canonical extent.
+      linkedChildren += canonical
+      remember(canonical, requested)
+
     def insert(requested: Node, start: Option[Node]): Node =
-      findEquivalent(requested, start) match
-        case Some(existing) => remember(existing, requested)
-        case None =>
-          val generator = getClosureConcept(requested, start)
-          val generatorChildren = childrenOf(generator)
+      // Recursive intersections can revisit the exact temporary object after it
+      // has been published. This is lifecycle handling, not semantic equality.
+      nodeMap.get(requested.id).filter(_ eq requested) match
+        case Some(materialized) => materialized
+        case None => exactSymbolExtent(requested.symbols) match
+          case Some(canonical) => repositionCanonical(canonical, requested)
+          case None => findEquivalent(requested, start) match
+            case Some(existing) => remember(existing, requested)
+            case None =>
+              val generators = getClosureConcepts(requested, start)
+              val generatorChildren = childrenOf(generators)
 
-          // Publish the requested model before recursion so a repeated learned
-          // intersection can reuse it even if CVA inclusion is non-transitive.
-          nodeMap.put(requested.id, requested)
-          bottomNodeIds += requested.id
-          created += requested
+              // Publish the requested model before recursion so a repeated learned
+              // intersection can reuse it even if CVA inclusion is non-transitive.
+              nodeMap.put(requested.id, requested)
+              bottomNodeIds += requested.id
+              created += requested
 
-          val candidates = mutable.LinkedHashMap.empty[Long, Node]
-          generatorChildren.foreach { oldChild =>
-            val candidate =
-              if includes(requested, oldChild) then Some(oldChild)
-              else
-                val members = intersectionInstances(oldChild, requested, accepts)
-                if members.isEmpty then None
-                else Some(insert(target(members), Some(oldChild)))
+              val candidates = mutable.LinkedHashMap.empty[Long, Node]
+              generatorChildren.foreach { oldChild =>
+                val candidate =
+                  if includes(requested, oldChild) then Some(oldChild)
+                  else
+                    val members = intersectionInstances(oldChild, requested, accepts)
+                    if members.isEmpty then None
+                    else Some(insert(target(members), Some(oldChild)))
 
-            candidate.filter(_.id != requested.id).foreach { child =>
-              candidates.getOrElseUpdate(child.id, child)
-            }
+                candidate.filterNot(_ eq requested).foreach { child =>
+                  candidates.getOrElseUpdate(child.id, child)
+                }
+              }
+
+              // Cover repair uses the order already established by recursive calls,
+              // avoiding a quadratic round of pairwise CVA extent comparisons.
+              val candidateIds = candidates.keySet.toSet
+              val newChildren = candidates.valuesIterator.filter { child =>
+                !ancestorClosure(child).exists(id => id != child.id && candidateIds.contains(id))
+              }.toVector
+              newChildren.foreach { child =>
+                if connect(requested, child) then
+                  generators.filter(_.children.contains(child.id)).foreach(unlink(_, child))
+              }
+              generators.foreach(connect(_, requested))
+              requested
+
+    def coalesceDuplicateSymbolExtents(preferred: Node): Node =
+      refreshSymbolExtents()
+      val duplicateGroups = symbolExtentIndex.valuesIterator.filter(_.size > 1)
+        .map(_.toSet).toVector
+      var result = preferred
+      duplicateGroups.foreach { ids =>
+        val group = nodeMap.valuesIterator.filter(node => ids.contains(node.id)).toVector
+        if group.size > 1 then
+          // NodeStore preserves insertion order, so the oldest node remains the
+          // stable canonical address for this symbolic extent.
+          val canonical = group.head
+          val groupIds = group.iterator.map(_.id).toSet
+          val externalParentIds = group.iterator.flatMap(_.parents.iterator)
+            .filterNot(groupIds).toSet
+          val externalChildIds = group.iterator.flatMap(_.children.iterator)
+            .filterNot(groupIds).toSet
+
+          // Detach every copy first so rewiring cannot retain an edge to a node
+          // that is about to be removed.
+          group.foreach { duplicate =>
+            duplicate.parents.iterator.flatMap(nodeMap.get).toVector
+              .foreach(unlink(_, duplicate))
+            duplicate.children.iterator.flatMap(nodeMap.get).toVector
+              .foreach(unlink(duplicate, _))
           }
-
-          // Cover repair uses the order already established by recursive calls,
-          // avoiding a quadratic round of pairwise CVA extent comparisons.
-          val candidateIds = candidates.keySet.toSet
-          val newChildren = candidates.valuesIterator.filter { child =>
-            !ancestorClosure(child).exists(id => id != child.id && candidateIds.contains(id))
-          }.toVector
-          newChildren.foreach { child =>
-            if connect(requested, child) then generator.foreach(unlink(_, child))
-          }
-          generator.foreach(connect(_, requested))
-          requested
+          group.tail.foreach(duplicate => nodeMap.remove(duplicate.id))
+          externalParentIds.iterator.flatMap(nodeMap.get).foreach(connect(_, canonical))
+          externalChildIds.iterator.flatMap(nodeMap.get).foreach(connect(canonical, _))
+          if group.exists(_ eq result) then result = canonical
+      }
+      refreshSymbolExtents()
+      result
 
     val objectNode = insert(target(instances.toVector), None)
 
@@ -518,22 +580,19 @@ class Lattice(
       }
     changed.foreach(_.refit())
 
-    // Learned inclusion/equivalence can make adjacent nodes acquire identical
-    // extents. Propagation guarantees containment, so equal sizes mean there is
-    // no strict cover left between these endpoints. Retain both learned intents
-    // but remove that edge; membership/equivalence still use their CVA models.
+    // Remove non-strict edges before equal symbolic extents are canonicalized.
     (seeds.iterator ++ changed.iterator).foreach { child =>
       child.parents.iterator.map(nodeMap).filter(_.size == child.size).toVector
         .foreach(unlink(_, child))
     }
-    objectNode
+    coalesceDuplicateSymbolExtents(objectNode)
   }
 
   private def intersectionInstances(
-      left: Node,
-      right: Node,
-      accepts: (Node, Instance) => Boolean
-  ): Vector[Instance] =
+                                     left: Node,
+                                     right: Node,
+                                     accepts: (Node, Instance) => Boolean
+                                   ): Vector[Instance] =
     val retained = mutable.LinkedHashMap.empty[String, Instance]
     (left.instancesIterator ++ right.instancesIterator).foreach { member =>
       if !retained.contains(member.symbol) && accepts(left, member) && accepts(right, member) then
@@ -554,8 +613,8 @@ class Lattice(
         (a.classifies(b.commonVector) && b.classifies(a.commonVector)))
 
   /** Stop once the coverage threshold is either reached or impossible.
-    * This preserves coverage semantics without scoring every extent member.
-    */
+   * This preserves coverage semantics without scoring every extent member.
+   */
   private def coversEnough(classifier: Node, extent: Node): Boolean =
     val total = extent.size
     var accepted = 0
@@ -598,10 +657,17 @@ class Lattice(
    * or that an intermediate concept is absent from every edge.
    */
   def validate(): Unit =
+    refreshSymbolExtents()
+    val duplicateExtents = symbolExtentIndex.collect {
+      case (symbols, ids) if ids.size > 1 => symbols -> ids.toSet
+    }
+    require(duplicateExtents.isEmpty, s"Duplicate symbolic extents: $duplicateExtents")
     val expectedBottomIds = nodeMap.valuesIterator.filter(_.children.isEmpty).map(_.id).toSet
-    require(bottomNodeIds.toSet == expectedBottomIds, "Bottom-node index is inconsistent")
+    require(bottomNodeIds.toSet == expectedBottomIds,
+      s"Bottom-node index is inconsistent: indexed=${bottomNodeIds.toSet}, expected=$expectedBottomIds")
     val expectedTopIds = nodeMap.valuesIterator.filter(_.parents.isEmpty).map(_.id).toSet
-    require(topNodeIds.toSet == expectedTopIds, "Top-node index is inconsistent")
+    require(topNodeIds.toSet == expectedTopIds,
+      s"Top-node index is inconsistent: indexed=${topNodeIds.toSet}, expected=$expectedTopIds")
     nodeMap.values.foreach { n =>
       n.parents.foreach { pId =>
         require(nodeMap.contains(pId), s"Missing parent $pId of node ${n.id}")
@@ -630,7 +696,7 @@ class Lattice(
     }.mkString("\n")
 
   /** Replaces this lattice with the lattice stored in `filename`, reporting loading progress. */
-  def load(filename: String, maxCount:Int = 10000000): Lattice =
+  def load(filename: String, maxCount: Int = 10000000): Lattice =
     val startedAt = System.nanoTime()
     // Models use projections read-only and replace them on refit. Reuse the
     // overwhelmingly common identity instead of retaining dimension² floats per node.
@@ -697,7 +763,7 @@ class Lattice(
       if magic != Lattice.FileMagic then
         throw new IllegalArgumentException("Not a CVA-FCA lattice file")
       val version = input.readInt()
-      if version != 1 && version != Lattice.FileVersion then
+      if version < 1 || version > Lattice.FileVersion then
         throw new IllegalArgumentException(s"Unsupported lattice file version: $version")
 
       val storedDimension = readCount(input, "CVA dimension")
@@ -724,35 +790,38 @@ class Lattice(
       val minCount = math.min(nodeCount, maxCount)
       while nodeIndex < minCount do
         try
-            val id = input.readLong()
-            if loadedNodes.contains(id) then
-              throw new IllegalArgumentException(s"Duplicate node ID in lattice file: $id")
-            val restoredModel = if version >= 2 then
-              val commonVector = readTensor(input, cva.dimension.toLong)
-              val projection = readTensor(input, cva.dimension.toLong * cva.dimension, isProjection = true)
+          val id = input.readLong()
+          if loadedNodes.contains(id) then
+            throw new IllegalArgumentException(s"Duplicate node ID in lattice file: $id")
+          val restoredTensors = if version >= 2 then
+            val commonVector = readTensor(input, cva.dimension.toLong)
+            val projection = readTensor(input, cva.dimension.toLong * cva.dimension, isProjection = true)
+            if version == 2 then
               val radius = input.readDouble()
               require(!radius.isNaN && radius >= 0.0, s"Invalid classification radius for node $id")
-              Some(CvaModel(commonVector, projection, radius))
-            else None
-            val instanceCount = readCount(input, "instance count")
-            if instanceCount == 0 then
-              throw new IllegalArgumentException(s"Node $id has no instances")
-            // Node consumes this iterator directly into its extent, without a second collection.
-            val instances = Iterator.fill(instanceCount) {
-              val symbol = input.readUTF()
-              val vector = readTensor(input, cva.dimension.toLong)
-              Instance(symbol, vector)
-            }
-            val loaded = new Node(id, instances, cva, restoredModel = restoredModel)
-            // Finish the whole record before publishing it. If EOF occurs here,
-            // no partially read node is retained.
-            val parents = Array.fill(readCount(input, "parent count"))(input.readLong())
-            val children = Array.fill(readCount(input, "child count"))(input.readLong())
-            loaded.parents.addAll(parents)
-            loaded.children.addAll(children)
-            loadedNodes.put(id, loaded)
-            nodeIndex += 1
-            reportProgress("nodes", nodeIndex, force = nodeIndex == nodeCount)
+            Some((commonVector, projection))
+          else None
+          val instanceCount = readCount(input, "instance count")
+          if instanceCount == 0 then
+            throw new IllegalArgumentException(s"Node $id has no instances")
+          val instances = Vector.fill(instanceCount) {
+            val symbol = input.readUTF()
+            val vector = readTensor(input, cva.dimension.toLong)
+            Instance(symbol, vector)
+          }
+          val restoredModel = restoredTensors.map { (commonVector, projection) =>
+            cva.restore(commonVector, projection, instances.map(_.vector))
+          }
+          val loaded = new Node(id, instances, cva, restoredModel = restoredModel)
+          // Finish the whole record before publishing it. If EOF occurs here,
+          // no partially read node is retained.
+          val parents = Array.fill(readCount(input, "parent count"))(input.readLong())
+          val children = Array.fill(readCount(input, "child count"))(input.readLong())
+          loaded.parents.addAll(parents)
+          loaded.children.addAll(children)
+          loadedNodes.put(id, loaded)
+          nodeIndex += 1
+          reportProgress("nodes", nodeIndex, force = nodeIndex == nodeCount)
         catch
           case error: EOFException =>
             throw new IllegalArgumentException(
@@ -833,7 +902,6 @@ class Lattice(
             output.writeLong(id)
             writeTensor(output, latticeNode.commonVector)
             writeTensor(output, latticeNode.projection)
-            output.writeDouble(latticeNode.classificationRadius)
             output.writeInt(latticeNode.size)
             latticeNode.instances.foreach { instance =>
               output.writeUTF(instance.symbol)
@@ -875,10 +943,7 @@ class Lattice(
 
 private object Lattice:
   val FileMagic = 0x43564146 // "CVAF"
-  val FileVersion = 2
-  lazy val parallelIndexTaskSupport = new ForkJoinTaskSupport(
-    new ForkJoinPool(math.min(24, math.max(1, Runtime.getRuntime.availableProcessors())))
-  )
+  val FileVersion = 3
   lazy val parallelClosureTaskSupport = new ForkJoinTaskSupport(
     new ForkJoinPool(math.min(8, math.max(1, Runtime.getRuntime.availableProcessors())))
   )

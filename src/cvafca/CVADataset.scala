@@ -18,6 +18,8 @@ final class Tokenizer {
 
 class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000) {
   require(size > 0, "Batch size must be greater than zero")
+  require(start >= 0, "Start must not be negative")
+  require(limit >= 0, "Limit must not be negative")
 
   private final class CountingInputStream(input: InputStream) extends FilterInputStream(input) {
     var bytesRead = 0L
@@ -103,9 +105,9 @@ class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000
     val source = Source.fromFile(filename, "UTF-8")
 
     try
-      source.getLines().zipWithIndex.filter { case (_, index) => index >= start }
+      source.getLines().drop(start).take(limit).zipWithIndex
         .map { case (line, index) =>
-        val embedding = parseEmbedding(line, index.toLong + 1, device)
+        val embedding = parseEmbedding(line, start.toLong + index + 1, device)
         embedding.symbol -> embedding.vector
 
       }.toMap
@@ -133,12 +135,12 @@ class CVADataset(val size: Int = 1, val start: Int = 0, val limit: Int = 1000000
     val totalBytes = Files.size(path)
     val input = new CountingInputStream(Files.newInputStream(path))
     val source = Source.fromInputStream(input, "UTF-8")
-    val lines = source.getLines().take(limit)
+    val lines = source.getLines().drop(start).take(limit)
     val progressInterval = math.max(1024L, size.toLong)
 
     val embeddings = new Iterator[Instance] {
       private var closed = false
-      private var lineNumber = 0L
+      private var lineNumber = start.toLong
       private var nextProgressAt = progressInterval
       private var lastReportedLine = -1L
 

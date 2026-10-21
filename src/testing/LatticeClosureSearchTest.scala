@@ -68,7 +68,8 @@ object LatticeClosureSearchTest:
     val points = (0 until 8).map(i => sample(s"up-$i", i * 4f, 0f)).toVector
     val upFixture = new Lattice(upCva):
       val parents = (0 until 48).map(i =>
-        new Node(2000L + i, points, this.cva, do_avg = false)).toVector
+        new Node(2000L + i, points :+ sample(s"parent-extra-$i", 32f + i * 4f, 0f),
+          this.cva, do_avg = false)).toVector
       val leaves = points.zipWithIndex.map { (point, i) =>
         new Node(3000L + i, Vector(point), this.cva, do_avg = false)
       }
@@ -82,8 +83,9 @@ object LatticeClosureSearchTest:
     val upward = upFixture.cloneLattice()
     val upQuery = sample("upward-query", 1f, 0f)
     val upNode = upward.fastAddIntent(upQuery)
-    assert(upNode.parents.toSet == Set(2000L))
-    assert(upward.node(2000L).classifies(upQuery))
+    val expectedClassifyingParents = (2000L until 2048L).toSet
+    assert(upNode.parents.toSet == expectedClassifyingParents)
+    assert(expectedClassifyingParents.forall(id => upward.node(id).classifies(upQuery)))
     upward.validate()
 
     // Probe acceptance alone cannot establish inclusion or mutual equivalence.
@@ -96,17 +98,19 @@ object LatticeClosureSearchTest:
     assert(mixedNode.children.contains(line.id))
     verified.validate()
 
-    // Exact indexed matches bypass a deliberately tiny approximate search.
+    // Approximate extents are found by CVA classification even when their
+    // symbols differ completely.
     val smallCva = new CVA(2, CvaConfig(0.01, 1.0))
-    val exactFixture = new Lattice(smallCva, LatticeConfig(closureSearchVisits = 1,
-      closureSearchFrontier = 1, closureSearchBeamWidth = 1)):
+    val approximateFixture = new Lattice(smallCva, LatticeConfig(closureSearchVisits = 1200,
+      closureSearchFrontier = 600, closureSearchBeamWidth = 16)):
       for i <- 0 until 600 do
         val member = sample(s"exact-$i", (i % 20) * 4f, (i / 20) * 4f)
         val node = new Node(4000L + i, Vector(member), this.cva, do_avg = false)
         nodeMap.put(node.id, node)
-    val exact = exactFixture.cloneLattice()
-    assert(exact.fastAddIntent(exact.node(4599L).instances).id == 4599L)
-    assert(exact.size == 600)
-    exact.validate()
+    val approximate = approximateFixture.cloneLattice()
+    val equivalentVector = approximate.node(4599L).instances.head.vector
+    assert(approximate.fastAddIntent(Instance("different-symbol", equivalentVector)).id == 4599L)
+    assert(approximate.size == 600)
+    approximate.validate()
 
     println("Closure graph directions, full CVA verification and parallel determinism checks passed.")
