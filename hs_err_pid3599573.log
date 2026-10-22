@@ -1,0 +1,2308 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x000078e10b5daf58, pid=3599573, tid=3599574
+#
+# JRE version: Java(TM) SE Runtime Environment Oracle GraalVM 17.0.12+8.1 (17.0.12+8) (build 17.0.12+8-LTS-jvmci-23.0-b41)
+# Java VM: Java HotSpot(TM) 64-Bit Server VM Oracle GraalVM 17.0.12+8.1 (17.0.12+8-LTS-jvmci-23.0-b41, mixed mode, sharing, tiered, jvmci, jvmci compiler, compressed oops, compressed class ptrs, g1 gc, linux-amd64)
+# Problematic frame:
+# C  [libjnitorch.so+0x11daf58]  Java_org_bytedeco_pytorch_global_torch_clip_1grad_1norm_1__Lorg_bytedeco_pytorch_TensorVector_2DDZ+0xb8
+#
+# Core dump will be written. Default location: Core dumps may be processed with "/usr/share/apport/apport -p%p -s%s -c%c -d%d -P%P -u%u -g%g -F%F -- %E" (or dumping to /run/media/wolf/KIOXIA/NeuralFCA/core.3599573)
+#
+# If you would like to submit a bug report, please visit:
+#   https://bugreport.java.com/bugreport/crash.jsp
+# The crash happened outside the Java Virtual Machine in native code.
+# See problematic frame for where to report the bug.
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -XX:ThreadPriorityPolicy=1 -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCIProduct -XX:-UnlockExperimentalVMOptions -javaagent:/snap/intellij-idea/128/lib/idea_rt.jar=45229 -Dfile.encoding=UTF-8 nn.FCATrainer
+
+Host: AMD Ryzen 9 5950X 16-Core Processor, 32 cores, 121G, Ubuntu 26.04 LTS
+Time: Wed Oct  7 21:45:16 2026 +03 elapsed time: 501.988189 seconds (0d 0h 8m 21s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x000078ea20026380):  JavaThread "main" [_thread_in_native, id=3599574, stack(0x000078ea25500000,0x000078ea25600000)]
+
+Stack: [0x000078ea25500000,0x000078ea25600000],  sp=0x000078ea255fda60,  free space=1014k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [libjnitorch.so+0x11daf58]  Java_org_bytedeco_pytorch_global_torch_clip_1grad_1norm_1__Lorg_bytedeco_pytorch_TensorVector_2DDZ+0xb8
+
+Java frames: (J=compiled Java code, j=interpreted, Vv=VM code)
+j  org.bytedeco.pytorch.global.torch.clip_grad_norm_(Lorg/bytedeco/pytorch/TensorVector;DDZ)D+0
+j  nn.FCATrainer.train$$anonfun$2$$anonfun$1$$anonfun$2$$anonfun$1(Lcvafca/Node;Lscala/collection/immutable/Map;Lcvafca/Node;Ltorch/optim/Adam;Lnn/FCANetwork;Lorg/bytedeco/pytorch/TensorVector;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lorg/bytedeco/javacpp/PointerScope;)V+190
+j  nn.FCATrainer$$Lambda$118+0x000078e96029d788.applyVoid(Ljava/lang/Object;)V+64
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Lscala/runtime/BoxedUnit;+2
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Ljava/lang/Object;+2
+J 2523 jvmci scala.util.Using$.resource(Ljava/lang/Object;Lscala/Function1;Lscala/util/Using$Releasable;)Ljava/lang/Object; (137 bytes) @ 0x000078ea0ea53d88 [0x000078ea0ea53b60+0x0000000000000228]
+j  nn.FCATrainer.train$$anonfun$2$$anonfun$1$$anonfun$2(Lcvafca/Node;Lscala/collection/immutable/Map;Ltorch/optim/Adam;Lnn/FCANetwork;Lorg/bytedeco/pytorch/TensorVector;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;JILcvafca/Node;)V+44
+j  nn.FCATrainer$$Lambda$117+0x000078e96029c9c0.applyVoid(Ljava/lang/Object;)V+72
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Lscala/runtime/BoxedUnit;+2
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Ljava/lang/Object;+2
+J 2890 c1 scala.collection.IterableOnceOps.foreach(Lscala/Function1;)V (36 bytes) @ 0x000078ea06dec4fc [0x000078ea06debc00+0x00000000000008fc]
+J 2478 c1 scala.collection.IterableOnceOps.foreach$(Lscala/collection/IterableOnceOps;Lscala/Function1;)V (6 bytes) @ 0x000078ea071bb8ec [0x000078ea071bb840+0x00000000000000ac]
+j  scala.collection.AbstractIterator.foreach(Lscala/Function1;)V+2
+j  nn.FCATrainer.train$$anonfun$2$$anonfun$1(Lscala/collection/immutable/Map;Lscala/collection/immutable/Map;Ltorch/optim/Adam;Lnn/FCANetwork;Lorg/bytedeco/pytorch/TensorVector;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;JILcvafca/Node;)V+55
+j  nn.FCATrainer$$Lambda$115+0x000078e960297650.applyVoid(Ljava/lang/Object;)V+72
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Lscala/runtime/BoxedUnit;+2
+j  scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Ljava/lang/Object;+2
+J 2890 c1 scala.collection.IterableOnceOps.foreach(Lscala/Function1;)V (36 bytes) @ 0x000078ea06dec4fc [0x000078ea06debc00+0x00000000000008fc]
+J 2478 c1 scala.collection.IterableOnceOps.foreach$(Lscala/collection/IterableOnceOps;Lscala/Function1;)V (6 bytes) @ 0x000078ea071bb8ec [0x000078ea071bb840+0x00000000000000ac]
+j  scala.collection.AbstractIterator.foreach(Lscala/Function1;)V+2
+j  nn.FCATrainer.train$$anonfun$2(Lcvafca/Lattice;Lscala/collection/immutable/Map;Lscala/collection/immutable/Map;Ltorch/optim/Adam;Lnn/FCANetwork;Lorg/bytedeco/pytorch/TensorVector;Lscala/runtime/LongRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/DoubleRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;Lscala/runtime/LongRef;JI)V+55
+j  nn.FCATrainer$$Lambda$114+0x000078e960297258.apply$mcVI$sp(I)V+61
+j  scala.runtime.java8.JFunction1$mcVI$sp.apply(Ljava/lang/Object;)Ljava/lang/Object;+5
+j  scala.collection.immutable.Range.foreach(Lscala/Function1;)V+17
+j  nn.FCATrainer.train(Ljava/lang/String;)Lnn/FCANetwork;+418
+j  nn.FCATrainer$.main([Ljava/lang/String;)V+38
+j  nn.FCATrainer.main([Ljava/lang/String;)V+4
+v  ~StubRoutines::call_stub
+
+siginfo: si_signo: 11 (SIGSEGV), si_code: 1 (SEGV_MAPERR), si_addr: 0x0000000000000000
+
+Registers:
+RAX=0x0000000000000001, RBX=0x0000000000000000, RCX=0x0000000000000030, RDX=0x0000000000000000
+RSP=0x000078ea255fda60, RBP=0x000078ea20026630, RSI=0x000078ea255fdbe0, RDI=0x000078ea20026630
+R8 =0x0000000000000001, R9 =0x00000000c32d2df0, R10=0x0000000000000018, R11=0x00000000000000e2
+R12=0x000078ea255fdbe0, R13=0x0000000000000000, R14=0x0000000000000000, R15=0x0000000000000000
+RIP=0x000078e10b5daf58, EFLAGS=0x0000000000010202, CSGSFS=0x002b000000000033, ERR=0x0000000000000004
+  TRAPNO=0x000000000000000e
+
+
+Register to memory mapping:
+
+RAX=0x0000000000000001 is an unknown value
+RBX=0x0 is NULL
+RCX=0x0000000000000030 is an unknown value
+RDX=0x0 is NULL
+RSP=0x000078ea255fda60 is pointing into the stack for thread: 0x000078ea20026380
+RBP=0x000078ea20026630 points into unknown readable memory: 0x000078ea253e9360 | 60 93 3e 25 ea 78 00 00
+RSI=0x000078ea255fdbe0 is pointing into the stack for thread: 0x000078ea20026380
+RDI=0x000078ea20026630 points into unknown readable memory: 0x000078ea253e9360 | 60 93 3e 25 ea 78 00 00
+R8 =0x0000000000000001 is an unknown value
+R9 =0x00000000c32d2df0 is an oop: org.bytedeco.pytorch.TensorVector 
+{0x00000000c32d2df0} - klass: 'org/bytedeco/pytorch/TensorVector'
+ - ---- fields (total size 6 words):
+ - private 'deallocator' 'Lorg/bytedeco/javacpp/Pointer$Deallocator;' @12  NULL (0)
+ - protected 'address' 'J' @16  0 (0 0)
+ - protected 'position' 'J' @24  0 (0 0)
+ - protected 'limit' 'J' @32  1 (1 0)
+ - protected 'capacity' 'J' @40  1 (1 0)
+R10=0x0000000000000018 is an unknown value
+R11=0x00000000000000e2 is an unknown value
+R12=0x000078ea255fdbe0 is pointing into the stack for thread: 0x000078ea20026380
+R13=0x0 is NULL
+R14=0x0 is NULL
+R15=0x0 is NULL
+
+
+Top of Stack: (sp=0x000078ea255fda60)
+0x000078ea255fda60:   0000000000000000 3ff0000000000000
+0x000078ea255fda70:   4000000000000000 000078ea20026380
+0x000078ea255fda80:   000078ea255fdac0 000078ea24ea0e58
+0x000078ea255fda90:   000078ea255fdac0 000078e95b79feb0 
+
+Instructions: (pc=0x000078e10b5daf58)
+0x000078e10b5dae58:   3e 00 48 8d 3d ab d2 3d 00 e8 1a 24 2e ff e8 e5
+0x000078e10b5dae68:   0e 2e ff f3 0f 1e fa 48 89 c7 e9 bc d8 48 ff f3
+0x000078e10b5dae78:   0f 1e fa 48 89 c3 e9 c6 d8 48 ff f3 0f 1e fa 48
+0x000078e10b5dae88:   89 c3 e9 2f d9 48 ff f3 0f 1e fa 48 89 c7 e9 cf
+0x000078e10b5dae98:   d8 48 ff 0f 1f 44 00 00 f3 0f 1e fa 41 57 41 56
+0x000078e10b5daea8:   41 89 ce 41 55 41 54 49 89 d4 55 48 89 fd 53 48
+0x000078e10b5daeb8:   81 ec 88 00 00 00 64 48 8b 04 25 28 00 00 00 48
+0x000078e10b5daec8:   89 44 24 78 31 c0 f2 0f 11 4c 24 10 f2 0f 11 44
+0x000078e10b5daed8:   24 08 48 85 d2 0f 84 fd 02 00 00 48 8b 07 48 8b
+0x000078e10b5daee8:   15 fb 0a 89 00 4c 89 e6 ff 90 28 03 00 00 48 8b
+0x000078e10b5daef8:   15 db 0a 89 00 4c 89 e6 48 89 ef 49 89 c7 48 8b
+0x000078e10b5daf08:   45 00 ff 90 28 03 00 00 4c 89 e6 48 89 ef 48 89
+0x000078e10b5daf18:   c3 e8 42 63 4c ff 48 8b 45 00 4c 89 e6 48 89 ef
+0x000078e10b5daf28:   48 8b 15 b1 0a 89 00 ff 90 28 03 00 00 f2 0f 10
+0x000078e10b5daf38:   4c 24 10 f2 0f 10 44 24 08 49 89 c5 48 89 d8 4b
+0x000078e10b5daf48:   8d 54 6d 00 4c 29 e8 49 8d 1c d7 48 89 44 24 48
+0x000078e10b5daf58:   48 8b 03 66 0f ef d2 31 f6 4c 8d 7c 24 58 45 84
+0x000078e10b5daf68:   f6 4c 8d 74 24 20 48 89 44 24 58 48 8b 43 08 40
+0x000078e10b5daf78:   0f 95 c6 4c 89 f7 4c 89 7c 24 40 48 89 44 24 60
+0x000078e10b5daf88:   48 8b 43 10 48 89 44 24 68 48 c7 43 10 00 00 00
+0x000078e10b5daf98:   00 0f 11 13 f3 0f 6f 5c 24 58 48 8b 44 24 68 48
+0x000078e10b5dafa8:   c7 44 24 50 00 00 00 00 48 89 44 24 30 48 c7 44
+0x000078e10b5dafb8:   24 68 00 00 00 00 0f 29 5c 24 20 0f 11 54 24 58
+0x000078e10b5dafc8:   e8 b3 51 2a 00 48 8b 54 24 28 4c 8b 44 24 20 f2
+0x000078e10b5dafd8:   0f 11 44 24 08 4c 39 c2 74 30 4c 8b 35 bf 4a 88
+0x000078e10b5dafe8:   00 0f 1f 80 00 00 00 00 49 8b 00 4c 39 f0 74 0c
+0x000078e10b5daff8:   f0 48 83 68 08 01 0f 84 14 01 00 00 49 83 c0 08
+0x000078e10b5db008:   4c 39 c2 75 e3 4c 8b 44 24 20 4d 85 c0 74 08 4c
+0x000078e10b5db018:   89 c7 e8 61 24 2e ff 45 31 f6 bf 18 00 00 00 e8
+0x000078e10b5db028:   64 86 2e ff f3 0f 6f 64 24 58 48 89 c2 48 8b 4c
+0x000078e10b5db038:   24 48 48 c7 44 24 60 00 00 00 00 48 c7 44 24 58
+0x000078e10b5db048:   00 00 00 00 0f 11 20 48 8b 44 24 68 48 89 54 24 
+
+
+Stack slot to memory mapping:
+stack at sp + 0 slots: 0x0 is NULL
+stack at sp + 1 slots: 0x3ff0000000000000 is an unknown value
+stack at sp + 2 slots: 0x4000000000000000 is an unknown value
+stack at sp + 3 slots: 0x000078ea20026380 is a thread
+stack at sp + 4 slots: 0x000078ea255fdac0 is pointing into the stack for thread: 0x000078ea20026380
+stack at sp + 5 slots: 0x000078ea24ea0e58: <offset 0x0000000000ca0e58> in /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/libjvm.so at 0x000078ea24200000
+stack at sp + 6 slots: 0x000078ea255fdac0 is pointing into the stack for thread: 0x000078ea20026380
+stack at sp + 7 slots: {method} {0x000078e95b79feb0} 'backward' '()V' in 'org/bytedeco/pytorch/Tensor'
+
+
+Compiled method (JVMCI) 2523   !   4       scala.util.Using$::resource (137 bytes)
+ total in heap  [0x000078ea0ea53990,0x000078ea0ea543f0] = 2656
+ relocation     [0x000078ea0ea53af0,0x000078ea0ea53b60] = 112
+ main code      [0x000078ea0ea53b60,0x000078ea0ea53f20] = 960
+ stub code      [0x000078ea0ea53f20,0x000078ea0ea53f50] = 48
+ oops           [0x000078ea0ea53f50,0x000078ea0ea53f58] = 8
+ metadata       [0x000078ea0ea53f58,0x000078ea0ea53fe0] = 136
+ scopes data    [0x000078ea0ea53fe0,0x000078ea0ea540a0] = 192
+ scopes pcs     [0x000078ea0ea540a0,0x000078ea0ea54200] = 352
+ dependencies   [0x000078ea0ea54200,0x000078ea0ea54210] = 16
+ nul chk table  [0x000078ea0ea54210,0x000078ea0ea54250] = 64
+ speculations   [0x000078ea0ea54250,0x000078ea0ea543d8] = 392
+ JVMCI data     [0x000078ea0ea543d8,0x000078ea0ea543f0] = 24
+
+[Constant Pool (empty)]
+
+[MachCode]
+[Entry Point]
+  # {method} {0x000078e95c318ee8} 'resource' '(Ljava/lang/Object;Lscala/Function1;Lscala/util/Using$Releasable;)Ljava/lang/Object;' in 'scala/util/Using$'
+  # this:     rsi:rsi   = 'scala/util/Using$'
+  # parm0:    rdx:rdx   = 'java/lang/Object'
+  # parm1:    rcx:rcx   = 'scala/Function1'
+  # parm2:    r8:r8     = 'scala/util/Using$Releasable'
+  #           [sp+0x40]  (sp of caller)
+  0x000078ea0ea53b60: 448b 5608 | 49bc 0000 | 005f e978 | 0000 4d03 | d44d 33e4 
+
+  0x000078ea0ea53b74: ;   {runtime_call ic_miss_stub}
+  0x000078ea0ea53b74: 493b c20f | 8503 ec46 | ff66 6690 
+[Verified Entry Point]
+  0x000078ea0ea53b80: 8984 2400 | c0fe ff48 | 83ec 3848 
+
+  0x000078ea0ea53b8c: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53b8c: 896c 2430 
+
+  0x000078ea0ea53b90: ; implicit exception: dispatches to 0x000078ea0ea53e6a
+                      ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53b90: 448b 5208 
+
+  0x000078ea0ea53b94: ; implicit exception: dispatches to 0x000078ea0ea53e86
+  0x000078ea0ea53b94: 4181 7808 
+
+  0x000078ea0ea53b98: ;   {metadata('scala/util/Using$Releasable$AutoCloseableIsReleasable$')}
+  0x000078ea0ea53b98: 68a1 2301 | 0f85 5a02 | 0000 49bb | 0000 005f | e978 0000 | 4f8d 0c13 
+
+  0x000078ea0ea53bb0: ;   {metadata('java/lang/AutoCloseable')}
+  0x000078ea0ea53bb0: 49bb 7058 | 015f e978 | 0000 4d3b | 5920 0f84 | 0d00 0000 
+
+  0x000078ea0ea53bc4: ;   {metadata('java/lang/AutoCloseable')}
+  0x000078ea0ea53bc4: 4181 fa70 | 5801 000f | 8549 0100 | 0048 85c9 | 0f84 b401 | 0000 448b | 5908 4181 
+
+  0x000078ea0ea53be0: ;   {metadata('numeric/BFloatTensors$$$Lambda$64+0x000078e960239d98')}
+  0x000078ea0ea53be0: fb98 9d23 | 010f 85c9 | 0000 0044 
+
+  0x000078ea0ea53bec: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop r11=NarrowOop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53bec: 8b59 1042 | 813c dd08 
+
+  0x000078ea0ea53bf4: ;   {metadata('numeric/BFloatTensors$$$Lambda$41+0x000078e9600cfd08')}
+  0x000078ea0ea53bf4: 0000 0008 | fd0c 010f | 859e 0100 | 0041 81fa 
+
+  0x000078ea0ea53c04: ;   {metadata('org/bytedeco/javacpp/PointerScope')}
+  0x000078ea0ea53c04: 388d 2301 | 0f85 c101 | 0000 4c89 | 4424 2048 | 8954 2418 | 4889 7424 | 1044 8b51 
+
+  0x000078ea0ea53c20: ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53c20: 0c42 8504 | d500 0000 | 0046 8b0c | dd0c 0000 | 0046 8b1c | dd10 0000 | 0049 c1e1 | 0349 c1e3 
+  0x000078ea0ea53c40: 0349 c1e2 | 0349 8bf1 | 498b d34c | 8954 2408 
+
+  0x000078ea0ea53c50: ;   {static_call}
+  0x000078ea0ea53c50: 6666 90e8 
+
+  0x000078ea0ea53c54: ; ImmutableOopMap {[8]=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*invokestatic apply$$anonfun$1 {reexecute=0 rethrow=0 return_oop=1}
+                      ; - numeric.BFloatTensors$$$Lambda$41/0x000078e9600cfd08::apply@8
+                      ; - numeric.BFloatTensors$::scoped$$anonfun$1@2 (line 22)
+                      ; - numeric.BFloatTensors$$$Lambda$64/0x000078e960239d98::apply@12
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53c54: 28f4 46ff 
+
+  0x000078ea0ea53c58: ; ImmutableOopMap {rax=Oop [8]=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*areturn {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) numeric.BFloatTensors$$$Lambda$41/0x000078e9600cfd08::apply@11
+                      ; - numeric.BFloatTensors$::scoped$$anonfun$1@2 (line 22)
+                      ; - numeric.BFloatTensors$$$Lambda$64/0x000078e960239d98::apply@12
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53c58: 9081 7808 
+
+  0x000078ea0ea53c5c: ;   {metadata('torch/BFloat16Tensor')}
+  0x000078ea0ea53c5c: e814 2401 | 0f85 ae01 | 0000 8b70 | 0c8b d648 | c1e2 0348 | 8b74 2408 
+
+  0x000078ea0ea53c74: ;   {optimized virtual_call}
+  0x000078ea0ea53c74: 6666 90e8 
+
+  0x000078ea0ea53c78: ; ImmutableOopMap {[16]=Oop [24]=Oop [32]=Oop }
+                      ;*invokevirtual put {reexecute=0 rethrow=0 return_oop=1}
+                      ; - numeric.BFloatTensors$::scoped$$anonfun$1@13 (line 22)
+                      ; - numeric.BFloatTensors$$$Lambda$64/0x000078e960239d98::apply@12
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53c78: 04ee 46ff | 9048 8904 | 2448 8b74 | 2418 6666 | 9048 b838 | 8d23 60e9 
+
+  0x000078ea0ea53c90: ;   {virtual_call}
+  0x000078ea0ea53c90: 7800 00e8 
+
+  0x000078ea0ea53c94: ; ImmutableOopMap {[0]=Oop [24]=Oop [32]=Oop }
+                      ;*invokeinterface close {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.util.Using$Releasable$AutoCloseableIsReleasable$::release@1 (line 428)
+                      ; - scala.util.Using$Releasable$AutoCloseableIsReleasable$::release@5 (line 427)
+                      ; - scala.util.Using$::resource@94 (line 302)
+  0x000078ea0ea53c94: e825 0600 | 9048 8b04 | 2448 8b6c | 2430 4883 
+
+  0x000078ea0ea53ca4: ;   {poll_return}
+  0x000078ea0ea53ca4: c438 493b | a748 0300 | 000f 87a3 | 0100 00c3 | 4c89 4424 | 2048 8954 | 2418 4889 | 7424 1041 
+  0x000078ea0ea53cc4: ;   {metadata('cvafca/Lattice$$Lambda$85+0x000078e96026f9f8')}
+  0x000078ea0ea53cc4: 81fb f8f9 | 2601 0f85 | 9c00 0000 
+
+  0x000078ea0ea53cd0: ;   {metadata('org/bytedeco/javacpp/PointerScope')}
+  0x000078ea0ea53cd0: 4181 fa38 | 8d23 010f | 8510 0100 
+
+  0x000078ea0ea53cdc: ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53cdc: 008b 710c 
+
+  0x000078ea0ea53ce0: ; implicit exception: deoptimizes
+                      ; ImmutableOopMap {rcx=Oop rsi=NarrowOop [16]=Oop [24]=Oop [32]=Oop }
+  0x000078ea0ea53ce0: 8504 f500 | 0000 008b | 5110 448b | 4114 8b49 | 1848 c1e6 | 0348 c1e2 | 0349 c1e0 | 0344 8bc9 
+  0x000078ea0ea53d00: 49c1 e103 | 498b c84d | 8bc1 4c8b 
+
+  0x000078ea0ea53d0c: ;   {optimized virtual_call}
+  0x000078ea0ea53d0c: 4c24 18e8 
+
+  0x000078ea0ea53d10: ; ImmutableOopMap {[16]=Oop [24]=Oop [32]=Oop }
+                      ;*invokevirtual tensorFromBytes$1$$anonfun$1 {reexecute=0 rethrow=0 return_oop=1}
+                      ; - cvafca.Lattice$$Lambda$85/0x000078e96026f9f8::apply@20
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53d10: 6ced 46ff | 90e9 63ff | ffff 498b | 5928 8b3b | b800 0000 | 00e9 3000 | 0000 6666 | 660f 1f84 
+  0x000078ea0ea53d30: 0000 0000 | 0066 6666 | 900f 1f80 | 0000 0000 | 8be8 c1e5 | 038d 6d08 | 4863 ed48 | 8b2c 2b4c 
+  0x000078ea0ea53d50: 3bdd 0f84 | 0b00 0000 | ffc0 3bf8 | 7fe2 e9d2 | 0000 004d | 8959 20e9 
+
+  0x000078ea0ea53d68: ; ImmutableOopMap {rcx=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53d68: 65fe ffff 
+
+  0x000078ea0ea53d6c: ; implicit exception: dispatches to 0x000078ea0ea53eda
+  0x000078ea0ea53d6c: 8501 488b | f148 8b54 | 2418 6666 | 9048 b850 | 0422 56e8 
+
+  0x000078ea0ea53d80: ;   {virtual_call}
+  0x000078ea0ea53d80: 7800 00e8 
+
+  0x000078ea0ea53d84: ; ImmutableOopMap {[16]=Oop [24]=Oop [32]=Oop }
+                      ;*invokeinterface apply {reexecute=0 rethrow=0 return_oop=1}
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53d84: c33f 47ff | 90e9 effe | ffff 4c89 | 4424 2048 | 8954 2418 | 4889 7424 | 10eb cd49 | c7c3 141e 
+  0x000078ea0ea53da4: 0000 41ba | cdff ffff | 4c89 4424 | 2048 8954 | 2418 4889 | 7424 1045 | 8997 7803 | 0000 4d89 
+  0x000078ea0ea53dc4: 9f80 0300 
+
+  0x000078ea0ea53dc8: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53dc8: 00e8 ac44 
+
+  0x000078ea0ea53dcc: ; ImmutableOopMap {rcx=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53dcc: 47ff 9049 | c7c3 0000 | 0000 41ba | ddff ffff | 4c89 4424 | 2048 8954 | 2418 4889 | 7424 10eb 
+  0x000078ea0ea53dec: ce49 c7c3 | 0000 0000 | 41ba ddff | ffff ebbf | 41c7 8778 | 0300 00c4 | ffff ff4d | 89a7 8003 
+  0x000078ea0ea53e0c: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53e0c: 0000 e867 
+
+  0x000078ea0ea53e10: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53e10: 4447 ff90 | 4c8b 5424 | 0841 c787 | 7803 0000 | cdff ffff | 49c7 8780 | 0300 0010 
+
+  0x000078ea0ea53e2c: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53e2c: 0400 00e8 
+
+  0x000078ea0ea53e30: ; ImmutableOopMap {rax=Oop r10=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*areturn {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) numeric.BFloatTensors$$$Lambda$41/0x000078e9600cfd08::apply@11
+                      ; - numeric.BFloatTensors$::scoped$$anonfun$1@2 (line 22)
+                      ; - numeric.BFloatTensors$$$Lambda$64/0x000078e960239d98::apply@12
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53e30: 4644 47ff | 9049 c7c3 | 0000 0000 | 41ba ddff | ffff 4c89 | 4424 2048 | 8954 2418 | 4889 7424 
+  0x000078ea0ea53e50: 10e9 65ff | ffff 488d | 0d49 feff | ff49 898f | 6003 0000 
+
+  0x000078ea0ea53e64: ;   {runtime_call SafepointBlob}
+  0x000078ea0ea53e64: e997 5247 | fff4 41c7 | 8778 0300 | 00ed ffff | ff49 c787 | 8003 0000 | 1000 0000 
+
+  0x000078ea0ea53e80: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53e80: e8f5 4347 
+
+  0x000078ea0ea53e84: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53e84: ff90 41c7 | 8778 0300 | 00c4 ffff | ff49 c787 | 8003 0000 | 0000 0000 
+
+  0x000078ea0ea53e9c: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53e9c: e8d9 4347 
+
+  0x000078ea0ea53ea0: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53ea0: ff90 41c7 | 8778 0300 | 00cd ffff | ff49 c787 | 8003 0000 | 141e 0000 
+
+  0x000078ea0ea53eb8: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53eb8: e8bd 4347 
+
+  0x000078ea0ea53ebc: ; ImmutableOopMap {rcx=Oop rdx=Oop rsi=Oop r8=Oop r11=NarrowOop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+  0x000078ea0ea53ebc: ff90 41c7 | 8778 0300 | 00f5 ffff | ff49 c787 | 8003 0000 | 0000 0000 
+
+  0x000078ea0ea53ed4: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53ed4: e8a1 4347 
+
+  0x000078ea0ea53ed8: ; ImmutableOopMap {rax=Oop [8]=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*areturn {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) numeric.BFloatTensors$$$Lambda$41/0x000078e9600cfd08::apply@11
+                      ; - numeric.BFloatTensors$::scoped$$anonfun$1@2 (line 22)
+                      ; - numeric.BFloatTensors$$$Lambda$64/0x000078e960239d98::apply@12
+                      ; - scala.util.Using$::resource@19 (line 296)
+  0x000078ea0ea53ed8: ff90 41c7 | 8778 0300 | 00f5 ffff | ff49 c787 | 8003 0000 | 0000 0000 
+
+  0x000078ea0ea53ef0: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53ef0: e885 4347 
+
+  0x000078ea0ea53ef4: ; ImmutableOopMap {rcx=Oop [16]=Oop [24]=Oop [32]=Oop }
+                      ;*aload_1 {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.util.Using$::resource@0 (line 292)
+                      ;   {runtime_call Stub<ExceptionHandlerStub.exceptionHandler>}
+  0x000078ea0ea53ef4: ff90 e805 | f66d ff90 
+[Deopt Handler Code]
+  0x000078ea0ea53efc: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea0ea53efc: e81f 4147 | ff90 f4f4 | f4f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 
+  0x000078ea0ea53f1c: f4f4 f4f4 
+[Stub Code]
+  0x000078ea0ea53f20: ;   {no_reloc}
+  0x000078ea0ea53f20: 48bb 0000 | 0000 0000 
+
+  0x000078ea0ea53f28: ;   {runtime_call}
+  0x000078ea0ea53f28: 0000 e9fb 
+
+  0x000078ea0ea53f2c: ;   {static_stub}
+  0x000078ea0ea53f2c: ffff ff48 | bb00 0000 | 0000 0000 
+
+  0x000078ea0ea53f38: ;   {runtime_call}
+  0x000078ea0ea53f38: 00e9 fbff 
+
+  0x000078ea0ea53f3c: ;   {static_stub}
+  0x000078ea0ea53f3c: ffff 48bb | 0000 0000 | 0000 0000 
+
+  0x000078ea0ea53f48: ;   {runtime_call}
+  0x000078ea0ea53f48: e9fb ffff | fff4 f4f4 
+[/MachCode]
+
+
+Compiled method (c1) 2890       3       scala.collection.IterableOnceOps::foreach (36 bytes)
+ total in heap  [0x000078ea06deba10,0x000078ea06deca20] = 4112
+ relocation     [0x000078ea06debb70,0x000078ea06debbf8] = 136
+ main code      [0x000078ea06debc00,0x000078ea06dec840] = 3136
+ stub code      [0x000078ea06dec840,0x000078ea06dec8b0] = 112
+ oops           [0x000078ea06dec8b0,0x000078ea06dec8b8] = 8
+ metadata       [0x000078ea06dec8b8,0x000078ea06dec8c0] = 8
+ scopes data    [0x000078ea06dec8c0,0x000078ea06dec928] = 104
+ scopes pcs     [0x000078ea06dec928,0x000078ea06dec9f8] = 208
+ dependencies   [0x000078ea06dec9f8,0x000078ea06deca00] = 8
+ nul chk table  [0x000078ea06deca00,0x000078ea06deca20] = 32
+
+[Constant Pool (empty)]
+
+[MachCode]
+[Entry Point]
+  # {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps'
+  # this:     rsi:rsi   = 'scala/collection/IterableOnceOps'
+  # parm0:    rdx:rdx   = 'scala/Function1'
+  #           [sp+0x50]  (sp of caller)
+  0x000078ea06debc00: 448b 5608 | 49bb 0000 | 005f e978 | 0000 4d03 | d34c 3bd0 
+
+  0x000078ea06debc14: ;   {runtime_call ic_miss_stub}
+  0x000078ea06debc14: 0f85 666b | 0d07 660f | 1f44 0000 
+[Verified Entry Point]
+  0x000078ea06debc20: 8984 2400 | c0fe ff55 | 4883 ec40 | 4889 5424 
+
+  0x000078ea06debc30: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06debc30: 2048 bf80 | 554a 5ce9 | 7800 008b | 9ff4 0000 | 0083 c302 | 899f f400 | 0000 81e3 | fe07 0000 
+  0x000078ea06debc50: 83fb 000f | 8447 0b00 | 0048 83fe 
+
+  0x000078ea06debc5c: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06debc5c: 0075 1648 | bb80 554a | 5ce9 7800 | 0080 8b31 | 0100 0001 | e94a 0200 
+
+  0x000078ea06debc74: ;   {metadata('scala/collection/IterableOnce')}
+  0x000078ea06debc74: 0048 b800 | 3200 60e9 | 7800 008b | 5e08 49ba | 0000 005f | e978 0000 | 4903 da48 | 3b43 200f 
+  0x000078ea06debc94: 841b 0000 | 0048 3bd8 | 0f84 1200 | 0000 5350 
+
+  0x000078ea06debca4: ;   {runtime_call slow_subtype_check Runtime1 stub}
+  0x000078ea06debca4: e857 0518 | 075b 5b83 | fb00 0f84 | ef01 0000 
+
+  0x000078ea06debcb4: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06debcb4: 48bb 8055 | 4a5c e978 | 0000 8b46 | 0849 ba00 | 0000 5fe9 | 7800 0049 | 03c2 483b | 8348 0100 
+  0x000078ea06debcd4: 0075 0d48 | 8383 5001 | 0000 01e9 | db01 0000 | 483b 8358 | 0100 0075 | 0d48 8383 | 6001 0000 
+  0x000078ea06debcf4: 01e9 c501 | 0000 483b | 8368 0100 | 0075 0d48 | 8383 7001 | 0000 01e9 | af01 0000 | 483b 8378 
+  0x000078ea06debd14: 0100 0075 | 0d48 8383 | 8001 0000 | 01e9 9901 | 0000 483b | 8388 0100 | 0075 0d48 | 8383 9001 
+  0x000078ea06debd34: 0000 01e9 | 8301 0000 | 483b 8398 | 0100 0075 | 0d48 8383 | a001 0000 | 01e9 6d01 | 0000 483b 
+  0x000078ea06debd54: 83a8 0100 | 0075 0d48 | 8383 b001 | 0000 01e9 | 5701 0000 | 483b 83b8 | 0100 0075 | 0d48 8383 
+  0x000078ea06debd74: c001 0000 | 01e9 4101 | 0000 4881 | bb48 0100 | 0000 0000 | 0075 1748 | 8983 4801 | 0000 48c7 
+  0x000078ea06debd94: 8350 0100 | 0001 0000 | 00e9 1d01 | 0000 4881 | bb58 0100 | 0000 0000 | 0075 1748 | 8983 5801 
+  0x000078ea06debdb4: 0000 48c7 | 8360 0100 | 0001 0000 | 00e9 f900 | 0000 4881 | bb68 0100 | 0000 0000 | 0075 1748 
+  0x000078ea06debdd4: 8983 6801 | 0000 48c7 | 8370 0100 | 0001 0000 | 00e9 d500 | 0000 4881 | bb78 0100 | 0000 0000 
+  0x000078ea06debdf4: 0075 1748 | 8983 7801 | 0000 48c7 | 8380 0100 | 0001 0000 | 00e9 b100 | 0000 4881 | bb88 0100 
+  0x000078ea06debe14: 0000 0000 | 0075 1748 | 8983 8801 | 0000 48c7 | 8390 0100 | 0001 0000 | 00e9 8d00 | 0000 4881 
+  0x000078ea06debe34: bb98 0100 | 0000 0000 | 0075 1748 | 8983 9801 | 0000 48c7 | 83a0 0100 | 0001 0000 | 00e9 6900 
+  0x000078ea06debe54: 0000 4881 | bba8 0100 | 0000 0000 | 0075 1748 | 8983 a801 | 0000 48c7 | 83b0 0100 | 0001 0000 
+  0x000078ea06debe74: 00e9 4500 | 0000 4881 | bbb8 0100 | 0000 0000 | 0075 1748 | 8983 b801 | 0000 48c7 | 83c0 0100 
+  0x000078ea06debe94: 0001 0000 | 00e9 2100 | 0000 e91c 
+
+  0x000078ea06debea0: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06debea0: 0000 0048 | bb80 554a | 5ce9 7800 | 0048 83ab | 3801 0000 | 01e9 0709 | 0000 e900 | 0000 0048 
+  0x000078ea06debec0: 3b06 488b 
+
+  0x000078ea06debec4: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06debec4: fe48 bb80 | 554a 5ce9 | 7800 008b | 7f08 49ba | 0000 005f | e978 0000 | 4903 fa48 | 3bbb e001 
+  0x000078ea06debee4: 0000 750d | 4883 83e8 | 0100 0001 | e9c2 0100 | 0048 3bbb | f001 0000 | 750d 4883 | 83f8 0100 
+  0x000078ea06debf04: 0001 e9ac | 0100 0048 | 3bbb 0002 | 0000 750d | 4883 8308 | 0200 0001 | e996 0100 | 0048 3bbb 
+  0x000078ea06debf24: 1002 0000 | 750d 4883 | 8318 0200 | 0001 e980 | 0100 0048 | 3bbb 2002 | 0000 750d | 4883 8328 
+  0x000078ea06debf44: 0200 0001 | e96a 0100 | 0048 3bbb | 3002 0000 | 750d 4883 | 8338 0200 | 0001 e954 | 0100 0048 
+  0x000078ea06debf64: 3bbb 4002 | 0000 750d | 4883 8348 | 0200 0001 | e93e 0100 | 0048 3bbb | 5002 0000 | 750d 4883 
+  0x000078ea06debf84: 8358 0200 | 0001 e928 | 0100 0048 | 81bb e001 | 0000 0000 | 0000 7517 | 4889 bbe0 | 0100 0048 
+  0x000078ea06debfa4: c783 e801 | 0000 0100 | 0000 e904 | 0100 0048 | 81bb f001 | 0000 0000 | 0000 7517 | 4889 bbf0 
+  0x000078ea06debfc4: 0100 0048 | c783 f801 | 0000 0100 | 0000 e9e0 | 0000 0048 | 81bb 0002 | 0000 0000 | 0000 7517 
+  0x000078ea06debfe4: 4889 bb00 | 0200 0048 | c783 0802 | 0000 0100 | 0000 e9bc | 0000 0048 | 81bb 1002 | 0000 0000 
+  0x000078ea06dec004: 0000 7517 | 4889 bb10 | 0200 0048 | c783 1802 | 0000 0100 | 0000 e998 | 0000 0048 | 81bb 2002 
+  0x000078ea06dec024: 0000 0000 | 0000 7517 | 4889 bb20 | 0200 0048 | c783 2802 | 0000 0100 | 0000 e974 | 0000 0048 
+  0x000078ea06dec044: 81bb 3002 | 0000 0000 | 0000 7517 | 4889 bb30 | 0200 0048 | c783 3802 | 0000 0100 | 0000 e950 
+  0x000078ea06dec064: 0000 0048 | 81bb 4002 | 0000 0000 | 0000 7517 | 4889 bb40 | 0200 0048 | c783 4802 | 0000 0100 
+  0x000078ea06dec084: 0000 e92c | 0000 0048 | 81bb 5002 | 0000 0000 | 0000 7517 | 4889 bb50 | 0200 0048 | c783 5802 
+  0x000078ea06dec0a4: 0000 0100 | 0000 e908 | 0000 0048 | 8383 d001 | 0000 0166 | 0f1f 4400 | 0048 b810 | 6120 56e8 
+  0x000078ea06dec0c4: ;   {virtual_call}
+  0x000078ea06dec0c4: 7800 00e8 
+
+  0x000078ea06dec0c8: ; ImmutableOopMap {[32]=Oop }
+                      ;*invokeinterface iterator {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@4 (line 618)
+  0x000078ea06dec0c8: a44f 1807 | 4889 4424 | 28e9 6d04 | 0000 6690 | 488b 4424 
+
+  0x000078ea06dec0dc: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec0dc: 2848 be80 | 554a 5ce9 | 7800 008b | 4008 49ba | 0000 005f | e978 0000 | 4903 c248 | 3b86 3003 
+  0x000078ea06dec0fc: 0000 750d | 4883 8638 | 0300 0001 | e9c2 0100 | 0048 3b86 | 4003 0000 | 750d 4883 | 8648 0300 
+  0x000078ea06dec11c: 0001 e9ac | 0100 0048 | 3b86 5003 | 0000 750d | 4883 8658 | 0300 0001 | e996 0100 | 0048 3b86 
+  0x000078ea06dec13c: 6003 0000 | 750d 4883 | 8668 0300 | 0001 e980 | 0100 0048 | 3b86 7003 | 0000 750d | 4883 8678 
+  0x000078ea06dec15c: 0300 0001 | e96a 0100 | 0048 3b86 | 8003 0000 | 750d 4883 | 8688 0300 | 0001 e954 | 0100 0048 
+  0x000078ea06dec17c: 3b86 9003 | 0000 750d | 4883 8698 | 0300 0001 | e93e 0100 | 0048 3b86 | a003 0000 | 750d 4883 
+  0x000078ea06dec19c: 86a8 0300 | 0001 e928 | 0100 0048 | 81be 3003 | 0000 0000 | 0000 7517 | 4889 8630 | 0300 0048 
+  0x000078ea06dec1bc: c786 3803 | 0000 0100 | 0000 e904 | 0100 0048 | 81be 4003 | 0000 0000 | 0000 7517 | 4889 8640 
+  0x000078ea06dec1dc: 0300 0048 | c786 4803 | 0000 0100 | 0000 e9e0 | 0000 0048 | 81be 5003 | 0000 0000 | 0000 7517 
+  0x000078ea06dec1fc: 4889 8650 | 0300 0048 | c786 5803 | 0000 0100 | 0000 e9bc | 0000 0048 | 81be 6003 | 0000 0000 
+  0x000078ea06dec21c: 0000 7517 | 4889 8660 | 0300 0048 | c786 6803 | 0000 0100 | 0000 e998 | 0000 0048 | 81be 7003 
+  0x000078ea06dec23c: 0000 0000 | 0000 7517 | 4889 8670 | 0300 0048 | c786 7803 | 0000 0100 | 0000 e974 | 0000 0048 
+  0x000078ea06dec25c: 81be 8003 | 0000 0000 | 0000 7517 | 4889 8680 | 0300 0048 | c786 8803 | 0000 0100 | 0000 e950 
+  0x000078ea06dec27c: 0000 0048 | 81be 9003 | 0000 0000 | 0000 7517 | 4889 8690 | 0300 0048 | c786 9803 | 0000 0100 
+  0x000078ea06dec29c: 0000 e92c | 0000 0048 | 81be a003 | 0000 0000 | 0000 7517 | 4889 86a0 | 0300 0048 | c786 a803 
+  0x000078ea06dec2bc: 0000 0100 | 0000 e908 | 0000 0048 | 8386 2003 | 0000 0148 | 8b74 2428 | 9048 b830 | 7420 56e8 
+  0x000078ea06dec2dc: ;   {virtual_call}
+  0x000078ea06dec2dc: 7800 00e8 
+
+  0x000078ea06dec2e0: ; ImmutableOopMap {[40]=Oop [32]=Oop }
+                      ;*invokeinterface next {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@21 (line 619)
+  0x000078ea06dec2e0: e47f 2a07 | 488b 5424 | 2048 3b02 
+
+  0x000078ea06dec2ec: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec2ec: 488b f248 | bf80 554a | 5ce9 7800 | 008b 7608 | 49ba 0000 | 005f e978 | 0000 4903 | f248 3bb7 
+  0x000078ea06dec30c: c803 0000 | 750d 4883 | 87d0 0300 | 0001 e9c2 | 0100 0048 | 3bb7 d803 | 0000 750d | 4883 87e0 
+  0x000078ea06dec32c: 0300 0001 | e9ac 0100 | 0048 3bb7 | e803 0000 | 750d 4883 | 87f0 0300 | 0001 e996 | 0100 0048 
+  0x000078ea06dec34c: 3bb7 f803 | 0000 750d | 4883 8700 | 0400 0001 | e980 0100 | 0048 3bb7 | 0804 0000 | 750d 4883 
+  0x000078ea06dec36c: 8710 0400 | 0001 e96a | 0100 0048 | 3bb7 1804 | 0000 750d | 4883 8720 | 0400 0001 | e954 0100 
+  0x000078ea06dec38c: 0048 3bb7 | 2804 0000 | 750d 4883 | 8730 0400 | 0001 e93e | 0100 0048 | 3bb7 3804 | 0000 750d 
+  0x000078ea06dec3ac: 4883 8740 | 0400 0001 | e928 0100 | 0048 81bf | c803 0000 | 0000 0000 | 7517 4889 | b7c8 0300 
+  0x000078ea06dec3cc: 0048 c787 | d003 0000 | 0100 0000 | e904 0100 | 0048 81bf | d803 0000 | 0000 0000 | 7517 4889 
+  0x000078ea06dec3ec: b7d8 0300 | 0048 c787 | e003 0000 | 0100 0000 | e9e0 0000 | 0048 81bf | e803 0000 | 0000 0000 
+  0x000078ea06dec40c: 7517 4889 | b7e8 0300 | 0048 c787 | f003 0000 | 0100 0000 | e9bc 0000 | 0048 81bf | f803 0000 
+  0x000078ea06dec42c: 0000 0000 | 7517 4889 | b7f8 0300 | 0048 c787 | 0004 0000 | 0100 0000 | e998 0000 | 0048 81bf 
+  0x000078ea06dec44c: 0804 0000 | 0000 0000 | 7517 4889 | b708 0400 | 0048 c787 | 1004 0000 | 0100 0000 | e974 0000 
+  0x000078ea06dec46c: 0048 81bf | 1804 0000 | 0000 0000 | 7517 4889 | b718 0400 | 0048 c787 | 2004 0000 | 0100 0000 
+  0x000078ea06dec48c: e950 0000 | 0048 81bf | 2804 0000 | 0000 0000 | 7517 4889 | b728 0400 | 0048 c787 | 3004 0000 
+  0x000078ea06dec4ac: 0100 0000 | e92c 0000 | 0048 81bf | 3804 0000 | 0000 0000 | 7517 4889 | b738 0400 | 0048 c787 
+  0x000078ea06dec4cc: 4004 0000 | 0100 0000 | e908 0000 | 0048 8387 | b803 0000 | 0148 8bfa | 488b d048 | 8bf7 6666 
+  0x000078ea06dec4ec: 9048 b830 | 8320 56e8 
+
+  0x000078ea06dec4f4: ;   {virtual_call}
+  0x000078ea06dec4f4: 7800 00e8 
+
+  0x000078ea06dec4f8: ; ImmutableOopMap {[40]=Oop [32]=Oop }
+                      ;*invokeinterface apply {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@26 (line 619)
+  0x000078ea06dec4f8: 744b 1807 
+
+  0x000078ea06dec4fc: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec4fc: 48be 8055 | 4a5c e978 | 0000 8bbe | f800 0000 | 83c7 0289 | bef8 0000 | 0081 e7fe | 3f00 0083 
+  0x000078ea06dec51c: ff00 0f84 | b002 0000 | 4d8b 9750 
+
+  0x000078ea06dec528: ; ImmutableOopMap {[40]=Oop [32]=Oop }
+                      ;*goto {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.collection.IterableOnceOps::foreach@32 (line 619)
+                      ;   {poll}
+  0x000078ea06dec528: 0300 0041 
+
+  0x000078ea06dec52c: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec52c: 8502 48be | 8055 4a5c | e978 0000 | ff86 5004 | 0000 488b | 4424 2848 | 3b00 488b 
+
+  0x000078ea06dec548: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec548: f048 bf80 | 554a 5ce9 | 7800 008b | 7608 49ba | 0000 005f | e978 0000 | 4903 f248 | 3bb7 7802 
+  0x000078ea06dec568: 0000 750d | 4883 8780 | 0200 0001 | e9c2 0100 | 0048 3bb7 | 8802 0000 | 750d 4883 | 8790 0200 
+  0x000078ea06dec588: 0001 e9ac | 0100 0048 | 3bb7 9802 | 0000 750d | 4883 87a0 | 0200 0001 | e996 0100 | 0048 3bb7 
+  0x000078ea06dec5a8: a802 0000 | 750d 4883 | 87b0 0200 | 0001 e980 | 0100 0048 | 3bb7 b802 | 0000 750d | 4883 87c0 
+  0x000078ea06dec5c8: 0200 0001 | e96a 0100 | 0048 3bb7 | c802 0000 | 750d 4883 | 87d0 0200 | 0001 e954 | 0100 0048 
+  0x000078ea06dec5e8: 3bb7 d802 | 0000 750d | 4883 87e0 | 0200 0001 | e93e 0100 | 0048 3bb7 | e802 0000 | 750d 4883 
+  0x000078ea06dec608: 87f0 0200 | 0001 e928 | 0100 0048 | 81bf 7802 | 0000 0000 | 0000 7517 | 4889 b778 | 0200 0048 
+  0x000078ea06dec628: c787 8002 | 0000 0100 | 0000 e904 | 0100 0048 | 81bf 8802 | 0000 0000 | 0000 7517 | 4889 b788 
+  0x000078ea06dec648: 0200 0048 | c787 9002 | 0000 0100 | 0000 e9e0 | 0000 0048 | 81bf 9802 | 0000 0000 | 0000 7517 
+  0x000078ea06dec668: 4889 b798 | 0200 0048 | c787 a002 | 0000 0100 | 0000 e9bc | 0000 0048 | 81bf a802 | 0000 0000 
+  0x000078ea06dec688: 0000 7517 | 4889 b7a8 | 0200 0048 | c787 b002 | 0000 0100 | 0000 e998 | 0000 0048 | 81bf b802 
+  0x000078ea06dec6a8: 0000 0000 | 0000 7517 | 4889 b7b8 | 0200 0048 | c787 c002 | 0000 0100 | 0000 e974 | 0000 0048 
+  0x000078ea06dec6c8: 81bf c802 | 0000 0000 | 0000 7517 | 4889 b7c8 | 0200 0048 | c787 d002 | 0000 0100 | 0000 e950 
+  0x000078ea06dec6e8: 0000 0048 | 81bf d802 | 0000 0000 | 0000 7517 | 4889 b7d8 | 0200 0048 | c787 e002 | 0000 0100 
+  0x000078ea06dec708: 0000 e92c | 0000 0048 | 81bf e802 | 0000 0000 | 0000 7517 | 4889 b7e8 | 0200 0048 | c787 f002 
+  0x000078ea06dec728: 0000 0100 | 0000 e908 | 0000 0048 | 8387 6802 | 0000 0148 | 8bf0 0f1f | 8000 0000 | 0048 b8f0 
+  0x000078ea06dec748: 7920 56e8 
+
+  0x000078ea06dec74c: ;   {virtual_call}
+  0x000078ea06dec74c: 7800 00e8 
+
+  0x000078ea06dec750: ; ImmutableOopMap {[32]=Oop [40]=Oop }
+                      ;*invokeinterface hasNext {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@11 (line 619)
+  0x000078ea06dec750: bc7a 2a07 
+
+  0x000078ea06dec754: ;   {metadata(method data for {method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec754: 83f8 0048 | be80 554a | 5ce9 7800 | 0048 bf10 | 0300 0000 | 0000 000f | 850a 0000 | 0048 bf00 
+  0x000078ea06dec774: 0300 0000 | 0000 0048 | 8b1c 3e48 | 8d5b 0148 | 891c 3e0f | 854b f9ff | ff48 83c4 
+
+  0x000078ea06dec790: ;   {poll_return}
+  0x000078ea06dec790: 405d 493b | a748 0300 | 000f 875b | 0000 00c3 
+
+  0x000078ea06dec7a0: ;   {metadata({method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec7a0: 49ba 80ff | 415b e978 | 0000 4c89 | 5424 0848 | c704 24ff 
+
+  0x000078ea06dec7b4: ;   {runtime_call counter_overflow Runtime1 stub}
+  0x000078ea06dec7b4: ffff ffe8 
+
+  0x000078ea06dec7b8: ; ImmutableOopMap {rsi=Oop rdx=Oop [32]=Oop }
+                      ;*synchronization entry
+                      ; - scala.collection.IterableOnceOps::foreach@-1 (line 618)
+  0x000078ea06dec7b8: 4424 1807 | e998 f4ff | ff48 8934 
+
+  0x000078ea06dec7c4: ;   {runtime_call throw_class_cast_exception Runtime1 stub}
+  0x000078ea06dec7c4: 24e8 56f4 
+
+  0x000078ea06dec7c8: ; ImmutableOopMap {[32]=Oop }
+                      ;*checkcast {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@1 (line 618)
+                      ;   {runtime_call throw_null_pointer_exception Runtime1 stub}
+  0x000078ea06dec7c8: 1707 e851 
+
+  0x000078ea06dec7cc: ; ImmutableOopMap {[32]=Oop rsi=Oop }
+                      ;*invokeinterface iterator {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@4 (line 618)
+                      ;   {runtime_call throw_null_pointer_exception Runtime1 stub}
+  0x000078ea06dec7cc: c417 07e8 
+
+  0x000078ea06dec7d0: ; ImmutableOopMap {[40]=Oop rax=Oop rdx=Oop [32]=Oop }
+                      ;*invokeinterface apply {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@26 (line 619)
+  0x000078ea06dec7d0: 4cc4 1707 
+
+  0x000078ea06dec7d4: ;   {metadata({method} {0x000078e95b41ff80} 'foreach' '(Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea06dec7d4: 49ba 80ff | 415b e978 | 0000 4c89 | 5424 0848 | c704 2420 
+
+  0x000078ea06dec7e8: ;   {runtime_call counter_overflow Runtime1 stub}
+  0x000078ea06dec7e8: 0000 00e8 
+
+  0x000078ea06dec7ec: ; ImmutableOopMap {[40]=Oop [32]=Oop }
+                      ;*goto {reexecute=1 rethrow=0 return_oop=0}
+                      ; - (reexecute) scala.collection.IterableOnceOps::foreach@32 (line 619)
+  0x000078ea06dec7ec: 1024 1807 | e92f fdff 
+
+  0x000078ea06dec7f4: ;   {runtime_call throw_null_pointer_exception Runtime1 stub}
+  0x000078ea06dec7f4: ffe8 26c4 
+
+  0x000078ea06dec7f8: ; ImmutableOopMap {rax=Oop [40]=Oop [32]=Oop }
+                      ;*invokeinterface hasNext {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach@11 (line 619)
+                      ;   {internal_word}
+  0x000078ea06dec7f8: 1707 49ba | 92c7 de06 | ea78 0000 | 4d89 9760 
+
+  0x000078ea06dec808: ;   {runtime_call SafepointBlob}
+  0x000078ea06dec808: 0300 00e9 | f0c8 0d07 | 9090 498b | 87e0 0300 | 0049 c787 | e003 0000 | 0000 0000 | 49c7 87e8 
+  0x000078ea06dec828: 0300 0000 | 0000 0048 | 83c4 405d 
+
+  0x000078ea06dec834: ;   {runtime_call unwind_exception Runtime1 stub}
+  0x000078ea06dec834: e9c7 b417 | 07f4 f4f4 | f4f4 f4f4 
+[Stub Code]
+  0x000078ea06dec840: ;   {no_reloc}
+  0x000078ea06dec840: 0f1f 4400 
+
+  0x000078ea06dec844: ;   {static_stub}
+  0x000078ea06dec844: 0048 bb00 | 0000 0000 
+
+  0x000078ea06dec84c: ;   {runtime_call}
+  0x000078ea06dec84c: 0000 00e9 | fbff ffff 
+
+  0x000078ea06dec854: ;   {static_stub}
+  0x000078ea06dec854: 9048 bb00 | 0000 0000 
+
+  0x000078ea06dec85c: ;   {runtime_call}
+  0x000078ea06dec85c: 0000 00e9 | fbff ffff 
+
+  0x000078ea06dec864: ;   {static_stub}
+  0x000078ea06dec864: 9048 bb00 | 0000 0000 
+
+  0x000078ea06dec86c: ;   {runtime_call}
+  0x000078ea06dec86c: 0000 00e9 | fbff ffff 
+
+  0x000078ea06dec874: ;   {static_stub}
+  0x000078ea06dec874: 9048 bb00 | 0000 0000 
+
+  0x000078ea06dec87c: ;   {runtime_call}
+  0x000078ea06dec87c: 0000 00e9 | fbff ffff 
+[Exception Handler]
+  0x000078ea06dec884: ;   {runtime_call handle_exception_from_callee Runtime1 stub}
+  0x000078ea06dec884: e877 ed17 
+
+  0x000078ea06dec888: ;   {external_word}
+  0x000078ea06dec888: 0748 bf31 | 640b 25ea | 7800 0048 
+
+  0x000078ea06dec894: ;   {runtime_call MacroAssembler::debug64(char*, long, long*)}
+  0x000078ea06dec894: 83e4 f0e8 | 34a8 ee1d 
+
+  0x000078ea06dec89c: ;   {section_word}
+  0x000078ea06dec89c: f449 ba9d | c8de 06ea | 7800 0041 
+
+  0x000078ea06dec8a8: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea06dec8a8: 52e9 72b7 | 0d07 f4f4 
+[/MachCode]
+
+
+Compiled method (c1) 2478       3       scala.collection.IterableOnceOps::foreach$ (6 bytes)
+ total in heap  [0x000078ea071bb690,0x000078ea071bba68] = 984
+ relocation     [0x000078ea071bb7f0,0x000078ea071bb830] = 64
+ main code      [0x000078ea071bb840,0x000078ea071bb980] = 320
+ stub code      [0x000078ea071bb980,0x000078ea071bb9c0] = 64
+ oops           [0x000078ea071bb9c0,0x000078ea071bb9c8] = 8
+ metadata       [0x000078ea071bb9c8,0x000078ea071bb9d0] = 8
+ scopes data    [0x000078ea071bb9d0,0x000078ea071bb9f0] = 32
+ scopes pcs     [0x000078ea071bb9f0,0x000078ea071bba50] = 96
+ dependencies   [0x000078ea071bba50,0x000078ea071bba58] = 8
+ nul chk table  [0x000078ea071bba58,0x000078ea071bba68] = 16
+
+[Constant Pool (empty)]
+
+[MachCode]
+[Verified Entry Point]
+  # {method} {0x000078e95b41ff28} 'foreach$' '(Lscala/collection/IterableOnceOps;Lscala/Function1;)V' in 'scala/collection/IterableOnceOps'
+  # parm0:    rsi:rsi   = 'scala/collection/IterableOnceOps'
+  # parm1:    rdx:rdx   = 'scala/Function1'
+  #           [sp+0x40]  (sp of caller)
+  0x000078ea071bb840: 8984 2400 | c0fe ff55 | 4883 ec30 
+
+  0x000078ea071bb84c: ;   {metadata(method data for {method} {0x000078e95b41ff28} 'foreach$' '(Lscala/collection/IterableOnceOps;Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea071bb84c: 48bf 1054 | 4a5c e978 | 0000 8b9f | f400 0000 | 83c3 0289 | 9ff4 0000 | 0081 e3fe | 0700 0083 
+  0x000078ea071bb86c: fb00 0f84 | 8b00 0000 | 4883 fe00 | 0f84 4400 
+
+  0x000078ea071bb87c: ;   {metadata('scala/collection/IterableOnceOps')}
+  0x000078ea071bb87c: 0000 48b9 | 0040 0060 | e978 0000 | 8b46 0849 | ba00 0000 | 5fe9 7800 | 0049 03c2 | 483b 4820 
+  0x000078ea071bb89c: 0f84 2000 | 0000 483b | c10f 8417 | 0000 0050 
+
+  0x000078ea071bb8ac: ;   {runtime_call slow_subtype_check Runtime1 stub}
+  0x000078ea071bb8ac: 51e8 4e09 | db06 5858 | 83f8 000f | 8463 0000 | 00e9 0000 | 0000 488b | fe48 3b07 
+
+  0x000078ea071bb8c8: ;   {metadata(method data for {method} {0x000078e95b41ff28} 'foreach$' '(Lscala/collection/IterableOnceOps;Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea071bb8c8: 488b f748 | bb10 544a | 5ce9 7800 | 0048 8383 | 3801 0000 | 0148 8bf7 | 0f1f 8000 
+
+  0x000078ea071bb8e4: ;   {optimized virtual_call}
+  0x000078ea071bb8e4: 0000 00e8 
+
+  0x000078ea071bb8e8: ; ImmutableOopMap {}
+                      ;*invokespecial foreach {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach$@2 (line 617)
+  0x000078ea071bb8e8: 3403 c3ff | 4883 c430 
+
+  0x000078ea071bb8f0: ;   {poll_return}
+  0x000078ea071bb8f0: 5d49 3ba7 | 4803 0000 | 0f87 3400 
+
+  0x000078ea071bb8fc: ;   {metadata({method} {0x000078e95b41ff28} 'foreach$' '(Lscala/collection/IterableOnceOps;Lscala/Function1;)V' in 'scala/collection/IterableOnceOps')}
+  0x000078ea071bb8fc: 0000 c349 | ba28 ff41 | 5be9 7800 | 004c 8954 | 2408 48c7 | 0424 ffff 
+
+  0x000078ea071bb914: ;   {runtime_call counter_overflow Runtime1 stub}
+  0x000078ea071bb914: ffff e8e5 
+
+  0x000078ea071bb918: ; ImmutableOopMap {rsi=Oop rdx=Oop }
+                      ;*synchronization entry
+                      ; - scala.collection.IterableOnceOps::foreach$@-1 (line 617)
+  0x000078ea071bb918: 32db 06e9 | 54ff ffff | 48c7 0424 | dfff ffff 
+
+  0x000078ea071bb928: ;   {runtime_call deoptimize Runtime1 stub}
+  0x000078ea071bb928: e8d3 17db 
+
+  0x000078ea071bb92c: ; ImmutableOopMap {rsi=Oop rdx=Oop }
+                      ;*invokespecial foreach {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach$@2 (line 617)
+                      ;   {runtime_call throw_null_pointer_exception Runtime1 stub}
+  0x000078ea071bb92c: 06e8 eed2 
+
+  0x000078ea071bb930: ; ImmutableOopMap {rdx=Oop rdi=Oop }
+                      ;*invokespecial foreach {reexecute=0 rethrow=0 return_oop=0}
+                      ; - scala.collection.IterableOnceOps::foreach$@2 (line 617)
+                      ;   {internal_word}
+  0x000078ea071bb930: da06 49ba | f1b8 1b07 | ea78 0000 | 4d89 9760 
+
+  0x000078ea071bb940: ;   {runtime_call SafepointBlob}
+  0x000078ea071bb940: 0300 00e9 | b8d7 d006 | 9090 498b | 87e0 0300 | 0049 c787 | e003 0000 | 0000 0000 | 49c7 87e8 
+  0x000078ea071bb960: 0300 0000 | 0000 0048 | 83c4 305d 
+
+  0x000078ea071bb96c: ;   {runtime_call unwind_exception Runtime1 stub}
+  0x000078ea071bb96c: e98f c3da | 06f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 | f4f4 f4f4 
+[Stub Code]
+  0x000078ea071bb980: ;   {no_reloc}
+  0x000078ea071bb980: 0f1f 4400 
+
+  0x000078ea071bb984: ;   {static_stub}
+  0x000078ea071bb984: 0048 bb00 | 0000 0000 
+
+  0x000078ea071bb98c: ;   {runtime_call}
+  0x000078ea071bb98c: 0000 00e9 | fbff ffff 
+[Exception Handler]
+  0x000078ea071bb994: ;   {runtime_call handle_exception_from_callee Runtime1 stub}
+  0x000078ea071bb994: e867 fcda 
+
+  0x000078ea071bb998: ;   {external_word}
+  0x000078ea071bb998: 0648 bf31 | 640b 25ea | 7800 0048 
+
+  0x000078ea071bb9a4: ;   {runtime_call MacroAssembler::debug64(char*, long, long*)}
+  0x000078ea071bb9a4: 83e4 f0e8 | 24b7 b11d 
+
+  0x000078ea071bb9ac: ;   {section_word}
+  0x000078ea071bb9ac: f449 baad | b91b 07ea | 7800 0041 
+
+  0x000078ea071bb9b8: ;   {runtime_call DeoptimizationBlob}
+  0x000078ea071bb9b8: 52e9 62c6 | d006 f4f4 
+[/MachCode]
+
+
+---------------  P R O C E S S  ---------------
+
+Threads class SMR info:
+_java_thread_list=0x000078e08c007b10, length=16, elements={
+0x000078ea20026380, 0x000078ea202123a0, 0x000078ea202137d0, 0x000078ea20219020,
+0x000078ea2021a3c0, 0x000078ea2021b7e0, 0x000078ea2021d1e0, 0x000078ea2021e720,
+0x000078ea20227b90, 0x000078ea20236000, 0x000078ea203d0620, 0x000078ea203d29f0,
+0x000078ea205d8470, 0x000078e9400eebc0, 0x000078e93c563dd0, 0x000078e084051b90
+}
+
+Java Threads: ( => current thread )
+=>0x000078ea20026380 JavaThread "main" [_thread_in_native, id=3599574, stack(0x000078ea25500000,0x000078ea25600000)]
+  0x000078ea202123a0 JavaThread "Reference Handler" daemon [_thread_blocked, id=3599581, stack(0x000078e9bc030000,0x000078e9bc130000)]
+  0x000078ea202137d0 JavaThread "Finalizer" daemon [_thread_blocked, id=3599582, stack(0x000078e9adf00000,0x000078e9ae000000)]
+  0x000078ea20219020 JavaThread "Signal Dispatcher" daemon [_thread_blocked, id=3599583, stack(0x000078e9ade00000,0x000078e9adf00000)]
+  0x000078ea2021a3c0 JavaThread "Service Thread" daemon [_thread_blocked, id=3599584, stack(0x000078e9ad700000,0x000078e9ad800000)]
+  0x000078ea2021b7e0 JavaThread "Monitor Deflation Thread" daemon [_thread_blocked, id=3599585, stack(0x000078e9ad600000,0x000078e9ad700000)]
+  0x000078ea2021d1e0 JavaThread "JVMCI-native CompilerThread0" daemon [_thread_blocked, id=3599586, stack(0x000078e9ad400000,0x000078e9ad600000)]
+  0x000078ea2021e720 JavaThread "C1 CompilerThread0" daemon [_thread_blocked, id=3599587, stack(0x000078e9ad200000,0x000078e9ad400000)]
+  0x000078ea20227b90 JavaThread "Sweeper thread" daemon [_thread_blocked, id=3599588, stack(0x000078e9ad100000,0x000078e9ad200000)]
+  0x000078ea20236000 JavaThread "Common-Cleaner" daemon [_thread_blocked, id=3599589, stack(0x000078e9ad000000,0x000078e9ad100000)]
+  0x000078ea203d0620 JavaThread "Monitor Ctrl-Break" daemon [_thread_in_native, id=3599593, stack(0x000078e9ac900000,0x000078e9aca00000)]
+  0x000078ea203d29f0 JavaThread "Notification Thread" daemon [_thread_blocked, id=3599594, stack(0x000078e9ac800000,0x000078e9ac900000)]
+  0x000078ea205d8470 JavaThread "JavaCPP Deallocator" daemon [_thread_blocked, id=3599601, stack(0x000078e9ac100000,0x000078e9ac200000)]
+  0x000078e9400eebc0 JavaThread "C1 CompilerThread1" daemon [_thread_blocked, id=3601444, stack(0x000078e108c00000,0x000078e108e00000)]
+  0x000078e93c563dd0 JavaThread "JVMCI-native CompilerThread1" daemon [_thread_blocked, id=3601449, stack(0x000078e9aca00000,0x000078e9acc00000)]
+  0x000078e084051b90 JavaThread "C1 CompilerThread2" daemon [_thread_blocked, id=3601459, stack(0x000078e108600000,0x000078e108800000)]
+
+Other Threads:
+  0x000078ea2020e110 VMThread "VM Thread" [stack: 0x000078e9bc131000,0x000078e9bc231000] [id=3599580]
+  0x000078ea20028f10 WatcherThread [stack: 0x000078e9ac700000,0x000078e9ac800000] [id=3599595]
+  0x000078ea2005d4b0 GCTaskThread "GC Thread#0" [stack: 0x000078e9bdef9000,0x000078e9bdff9000] [id=3599575]
+  0x000078e9a4008c00 GCTaskThread "GC Thread#1" [stack: 0x000078e9ac401000,0x000078e9ac600000] [id=3599720]
+  0x000078e9a4009240 GCTaskThread "GC Thread#2" [stack: 0x000078e95ae01000,0x000078e95b000000] [id=3599721]
+  0x000078e9a4009880 GCTaskThread "GC Thread#3" [stack: 0x000078e9ac201000,0x000078e9ac400000] [id=3599722]
+  0x000078e9a4009ec0 GCTaskThread "GC Thread#4" [stack: 0x000078e95a900000,0x000078e95aa00000] [id=3599723]
+  0x000078e9a400a900 GCTaskThread "GC Thread#5" [stack: 0x000078e95a500000,0x000078e95a600000] [id=3599724]
+  0x000078e9a400b340 GCTaskThread "GC Thread#6" [stack: 0x000078e958300000,0x000078e958400000] [id=3599725]
+  0x000078e9a400bd80 GCTaskThread "GC Thread#7" [stack: 0x000078e9581ff000,0x000078e9582ff000] [id=3599726]
+  0x000078e9a400c980 GCTaskThread "GC Thread#8" [stack: 0x000078e9580fe000,0x000078e9581fe000] [id=3599727]
+  0x000078e9a400d5c0 GCTaskThread "GC Thread#9" [stack: 0x000078e92bf00000,0x000078e92c000000] [id=3599728]
+  0x000078e9a400e200 GCTaskThread "GC Thread#10" [stack: 0x000078e9286ff000,0x000078e9287ff000] [id=3599729]
+  0x000078e9a400ee40 GCTaskThread "GC Thread#11" [stack: 0x000078e928300000,0x000078e928400000] [id=3599730]
+  0x000078e9a400fe70 GCTaskThread "GC Thread#12" [stack: 0x000078e9281ff000,0x000078e9282ff000] [id=3599731]
+  0x000078e9a4010ea0 GCTaskThread "GC Thread#13" [stack: 0x000078e9280fe000,0x000078e9281fe000] [id=3599732]
+  0x000078e9a4011ed0 GCTaskThread "GC Thread#14" [stack: 0x000078e120300000,0x000078e120400000] [id=3599733]
+  0x000078e9a4012f00 GCTaskThread "GC Thread#15" [stack: 0x000078e1201ff000,0x000078e1202ff000] [id=3599734]
+  0x000078e9a4013f30 GCTaskThread "GC Thread#16" [stack: 0x000078e1200fe000,0x000078e1201fe000] [id=3599735]
+  0x000078e9a4014f60 GCTaskThread "GC Thread#17" [stack: 0x000078e10bf00000,0x000078e10c000000] [id=3599736]
+  0x000078e9a4015f90 GCTaskThread "GC Thread#18" [stack: 0x000078e10a300000,0x000078e10a400000] [id=3599737]
+  0x000078e9a4016fc0 GCTaskThread "GC Thread#19" [stack: 0x000078e10a1ff000,0x000078e10a2ff000] [id=3599738]
+  0x000078e9a4017ff0 GCTaskThread "GC Thread#20" [stack: 0x000078e10a0fe000,0x000078e10a1fe000] [id=3599739]
+  0x000078e9a4019020 GCTaskThread "GC Thread#21" [stack: 0x000078e109ffd000,0x000078e10a0fd000] [id=3599740]
+  0x000078e9a401a050 GCTaskThread "GC Thread#22" [stack: 0x000078e109efc000,0x000078e109ffc000] [id=3599741]
+  0x000078ea2006dae0 ConcurrentGCThread "G1 Main Marker" [stack: 0x000078e9bddf8000,0x000078e9bdef8000] [id=3599576]
+  0x000078ea2006ea70 ConcurrentGCThread "G1 Conc#0" [stack: 0x000078e9bdcf7000,0x000078e9bddf7000] [id=3599577]
+  0x000078e9b0000e20 ConcurrentGCThread "G1 Conc#1" [stack: 0x000078e109700000,0x000078e109800000] [id=3599754]
+  0x000078e9b0001a30 ConcurrentGCThread "G1 Conc#2" [stack: 0x000078e1095ff000,0x000078e1096ff000] [id=3599755]
+  0x000078e9b0002640 ConcurrentGCThread "G1 Conc#3" [stack: 0x000078e1094fe000,0x000078e1095fe000] [id=3599756]
+  0x000078e9b0003670 ConcurrentGCThread "G1 Conc#4" [stack: 0x000078e1093fd000,0x000078e1094fd000] [id=3599757]
+  0x000078e9b00042b0 ConcurrentGCThread "G1 Conc#5" [stack: 0x000078e1092fc000,0x000078e1093fc000] [id=3599758]
+  0x000078ea201da480 ConcurrentGCThread "G1 Refine#0" [stack: 0x000078e9bc4df000,0x000078e9bc5df000] [id=3599578]
+  0x000078e9a8000e20 ConcurrentGCThread "G1 Refine#1" [stack: 0x000078e9ace01000,0x000078e9ad000000] [id=3599922]
+  0x000078e92c000980 ConcurrentGCThread "G1 Refine#2" [stack: 0x000078e9acc01000,0x000078e9ace00000] [id=3599923]
+  0x000078e930000980 ConcurrentGCThread "G1 Refine#3" [stack: 0x000078e109c01000,0x000078e109e00000] [id=3600053]
+  0x000078e0b406d570 ConcurrentGCThread "G1 Refine#4" [stack: 0x000078e108e01000,0x000078e109000000] [id=3601090]
+  0x000078e090025680 ConcurrentGCThread "G1 Refine#5" [stack: 0x000078e108801000,0x000078e108a00000] [id=3601458]
+  0x000078ea201db370 ConcurrentGCThread "G1 Service" [stack: 0x000078e9bc3de000,0x000078e9bc4de000] [id=3599579]
+
+Threads with active compile tasks:
+
+VM state: not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap address: 0x0000000082000000, size: 30688 MB, Compressed Oops mode: Zero based, Oop shift amount: 3
+
+CDS archive(s) mapped at: [0x000078e95f000000-0x000078e95fbdc000-0x000078e95fbdc000), size 12435456, SharedBaseAddress: 0x000078e95f000000, ArchiveRelocationMode: 1.
+Compressed class space mapped at: 0x000078e960000000-0x000078e9a0000000, reserved size: 1073741824
+Narrow klass base: 0x000078e95f000000, Narrow klass shift: 0, Narrow klass range: 0x100000000
+
+GC Precious Log:
+ CPUs: 32 total, 32 available
+ Memory: 121G
+ Large Page Support: Disabled
+ NUMA Support: Disabled
+ Compressed Oops: Enabled (Zero based)
+ Heap Region Size: 16M
+ Heap Min Capacity: 16M
+ Heap Initial Capacity: 1952M
+ Heap Max Capacity: 30688M
+ Pre-touch: Disabled
+ Parallel Workers: 23
+ Concurrent Workers: 6
+ Concurrent Refinement Workers: 23
+ Periodic GC: Disabled
+
+Heap:
+ garbage-first heap   total 1949696K, used 1174524K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 5 young (81920K), 1 survivors (16384K)
+ Metaspace       used 24187K, committed 24384K, reserved 1114112K
+  class space    used 2599K, committed 2688K, reserved 1048576K
+
+Heap Regions: E=young(eden), S=young(survivor), O=old, HS=humongous(starts), HC=humongous(continues), CS=collection set, F=free, OA=open archive, CA=closed archive, TAMS=top-at-mark-start (previous, next)
+|   0|0x0000000082000000, 0x0000000083000000, 0x0000000083000000|100%| O|  |TAMS 0x0000000083000000, 0x0000000082000000| Untracked 
+|   1|0x0000000083000000, 0x0000000084000000, 0x0000000084000000|100%| O|  |TAMS 0x0000000084000000, 0x0000000083000000| Untracked 
+|   2|0x0000000084000000, 0x0000000085000000, 0x0000000085000000|100%| O|  |TAMS 0x0000000085000000, 0x0000000084000000| Untracked 
+|   3|0x0000000085000000, 0x0000000086000000, 0x0000000086000000|100%| O|  |TAMS 0x0000000086000000, 0x0000000085000000| Untracked 
+|   4|0x0000000086000000, 0x0000000087000000, 0x0000000087000000|100%| O|  |TAMS 0x0000000087000000, 0x0000000086000000| Untracked 
+|   5|0x0000000087000000, 0x0000000088000000, 0x0000000088000000|100%| O|  |TAMS 0x0000000088000000, 0x0000000087000000| Untracked 
+|   6|0x0000000088000000, 0x0000000089000000, 0x0000000089000000|100%| O|  |TAMS 0x0000000089000000, 0x0000000088000000| Untracked 
+|   7|0x0000000089000000, 0x000000008a000000, 0x000000008a000000|100%| O|  |TAMS 0x000000008a000000, 0x0000000089000000| Untracked 
+|   8|0x000000008a000000, 0x000000008b000000, 0x000000008b000000|100%| O|  |TAMS 0x000000008b000000, 0x000000008a000000| Untracked 
+|   9|0x000000008b000000, 0x000000008c000000, 0x000000008c000000|100%| O|  |TAMS 0x000000008c000000, 0x000000008b000000| Untracked 
+|  10|0x000000008c000000, 0x000000008d000000, 0x000000008d000000|100%| O|  |TAMS 0x000000008d000000, 0x000000008c000000| Untracked 
+|  11|0x000000008d000000, 0x000000008e000000, 0x000000008e000000|100%| O|  |TAMS 0x000000008e000000, 0x000000008d000000| Untracked 
+|  12|0x000000008e000000, 0x000000008f000000, 0x000000008f000000|100%| O|  |TAMS 0x000000008f000000, 0x000000008e000000| Untracked 
+|  13|0x000000008f000000, 0x0000000090000000, 0x0000000090000000|100%| O|  |TAMS 0x0000000090000000, 0x000000008f000000| Untracked 
+|  14|0x0000000090000000, 0x0000000091000000, 0x0000000091000000|100%| O|  |TAMS 0x0000000091000000, 0x0000000090000000| Untracked 
+|  15|0x0000000091000000, 0x0000000092000000, 0x0000000092000000|100%| O|  |TAMS 0x0000000092000000, 0x0000000091000000| Untracked 
+|  16|0x0000000092000000, 0x0000000093000000, 0x0000000093000000|100%| O|  |TAMS 0x0000000093000000, 0x0000000092000000| Untracked 
+|  17|0x0000000093000000, 0x0000000094000000, 0x0000000094000000|100%| O|  |TAMS 0x0000000094000000, 0x0000000093000000| Untracked 
+|  18|0x0000000094000000, 0x0000000095000000, 0x0000000095000000|100%| O|  |TAMS 0x0000000095000000, 0x0000000094000000| Untracked 
+|  19|0x0000000095000000, 0x0000000096000000, 0x0000000096000000|100%| O|  |TAMS 0x0000000096000000, 0x0000000095000000| Untracked 
+|  20|0x0000000096000000, 0x0000000097000000, 0x0000000097000000|100%| O|  |TAMS 0x0000000097000000, 0x0000000096000000| Untracked 
+|  21|0x0000000097000000, 0x0000000098000000, 0x0000000098000000|100%| O|  |TAMS 0x0000000098000000, 0x0000000097000000| Untracked 
+|  22|0x0000000098000000, 0x0000000099000000, 0x0000000099000000|100%| O|  |TAMS 0x0000000099000000, 0x0000000098000000| Untracked 
+|  23|0x0000000099000000, 0x000000009a000000, 0x000000009a000000|100%| O|  |TAMS 0x000000009a000000, 0x0000000099000000| Untracked 
+|  24|0x000000009a000000, 0x000000009b000000, 0x000000009b000000|100%| O|  |TAMS 0x000000009b000000, 0x000000009a000000| Untracked 
+|  25|0x000000009b000000, 0x000000009c000000, 0x000000009c000000|100%| O|  |TAMS 0x000000009c000000, 0x000000009b000000| Untracked 
+|  26|0x000000009c000000, 0x000000009d000000, 0x000000009d000000|100%| O|  |TAMS 0x000000009d000000, 0x000000009c000000| Complete 
+|  27|0x000000009d000000, 0x000000009e000000, 0x000000009e000000|100%| O|  |TAMS 0x000000009e000000, 0x000000009d000000| Untracked 
+|  28|0x000000009e000000, 0x000000009f000000, 0x000000009f000000|100%| O|  |TAMS 0x000000009f000000, 0x000000009e000000| Untracked 
+|  29|0x000000009f000000, 0x00000000a0000000, 0x00000000a0000000|100%| O|  |TAMS 0x00000000a0000000, 0x000000009f000000| Untracked 
+|  30|0x00000000a0000000, 0x00000000a1000000, 0x00000000a1000000|100%| O|  |TAMS 0x00000000a1000000, 0x00000000a0000000| Untracked 
+|  31|0x00000000a1000000, 0x00000000a2000000, 0x00000000a2000000|100%| O|  |TAMS 0x00000000a2000000, 0x00000000a1000000| Untracked 
+|  32|0x00000000a2000000, 0x00000000a3000000, 0x00000000a3000000|100%| O|  |TAMS 0x00000000a3000000, 0x00000000a2000000| Untracked 
+|  33|0x00000000a3000000, 0x00000000a4000000, 0x00000000a4000000|100%| O|  |TAMS 0x00000000a4000000, 0x00000000a3000000| Untracked 
+|  34|0x00000000a4000000, 0x00000000a5000000, 0x00000000a5000000|100%| O|  |TAMS 0x00000000a5000000, 0x00000000a4000000| Untracked 
+|  35|0x00000000a5000000, 0x00000000a6000000, 0x00000000a6000000|100%| O|  |TAMS 0x00000000a6000000, 0x00000000a5000000| Untracked 
+|  36|0x00000000a6000000, 0x00000000a7000000, 0x00000000a7000000|100%| O|  |TAMS 0x00000000a7000000, 0x00000000a6000000| Untracked 
+|  37|0x00000000a7000000, 0x00000000a8000000, 0x00000000a8000000|100%| O|  |TAMS 0x00000000a8000000, 0x00000000a7000000| Untracked 
+|  38|0x00000000a8000000, 0x00000000a9000000, 0x00000000a9000000|100%| O|  |TAMS 0x00000000a9000000, 0x00000000a8000000| Untracked 
+|  39|0x00000000a9000000, 0x00000000aa000000, 0x00000000aa000000|100%| O|  |TAMS 0x00000000aa000000, 0x00000000a9000000| Untracked 
+|  40|0x00000000aa000000, 0x00000000ab000000, 0x00000000ab000000|100%| O|  |TAMS 0x00000000ab000000, 0x00000000aa000000| Untracked 
+|  41|0x00000000ab000000, 0x00000000ac000000, 0x00000000ac000000|100%| O|  |TAMS 0x00000000ac000000, 0x00000000ab000000| Untracked 
+|  42|0x00000000ac000000, 0x00000000ad000000, 0x00000000ad000000|100%| O|  |TAMS 0x00000000ad000000, 0x00000000ac000000| Untracked 
+|  43|0x00000000ad000000, 0x00000000ae000000, 0x00000000ae000000|100%| O|  |TAMS 0x00000000ae000000, 0x00000000ad000000| Untracked 
+|  44|0x00000000ae000000, 0x00000000af000000, 0x00000000af000000|100%| O|  |TAMS 0x00000000af000000, 0x00000000ae000000| Untracked 
+|  45|0x00000000af000000, 0x00000000b0000000, 0x00000000b0000000|100%| O|  |TAMS 0x00000000b0000000, 0x00000000af000000| Untracked 
+|  46|0x00000000b0000000, 0x00000000b1000000, 0x00000000b1000000|100%| O|  |TAMS 0x00000000b1000000, 0x00000000b0000000| Untracked 
+|  47|0x00000000b1000000, 0x00000000b2000000, 0x00000000b2000000|100%| O|  |TAMS 0x00000000b2000000, 0x00000000b1000000| Untracked 
+|  48|0x00000000b2000000, 0x00000000b2000000, 0x00000000b3000000|  0%| F|  |TAMS 0x00000000b2000000, 0x00000000b2000000| Untracked 
+|  49|0x00000000b3000000, 0x00000000b4000000, 0x00000000b4000000|100%| O|  |TAMS 0x00000000b4000000, 0x00000000b3000000| Untracked 
+|  50|0x00000000b4000000, 0x00000000b5000000, 0x00000000b5000000|100%| O|  |TAMS 0x00000000b5000000, 0x00000000b4000000| Untracked 
+|  51|0x00000000b5000000, 0x00000000b6000000, 0x00000000b6000000|100%| O|  |TAMS 0x00000000b6000000, 0x00000000b5000000| Untracked 
+|  52|0x00000000b6000000, 0x00000000b7000000, 0x00000000b7000000|100%| O|  |TAMS 0x00000000b7000000, 0x00000000b6000000| Untracked 
+|  53|0x00000000b7000000, 0x00000000b8000000, 0x00000000b8000000|100%| O|  |TAMS 0x00000000b8000000, 0x00000000b7000000| Untracked 
+|  54|0x00000000b8000000, 0x00000000b9000000, 0x00000000b9000000|100%| O|  |TAMS 0x00000000b9000000, 0x00000000b8000000| Untracked 
+|  55|0x00000000b9000000, 0x00000000ba000000, 0x00000000ba000000|100%| O|  |TAMS 0x00000000ba000000, 0x00000000b9000000| Untracked 
+|  56|0x00000000ba000000, 0x00000000bb000000, 0x00000000bb000000|100%| O|  |TAMS 0x00000000bb000000, 0x00000000ba000000| Untracked 
+|  57|0x00000000bb000000, 0x00000000bc000000, 0x00000000bc000000|100%|HS|  |TAMS 0x00000000bc000000, 0x00000000bb000000| Complete 
+|  58|0x00000000bc000000, 0x00000000bd000000, 0x00000000bd000000|100%|HS|  |TAMS 0x00000000bd000000, 0x00000000bc000000| Complete 
+|  59|0x00000000bd000000, 0x00000000be000000, 0x00000000be000000|100%| O|  |TAMS 0x00000000be000000, 0x00000000bd000000| Untracked 
+|  60|0x00000000be000000, 0x00000000bf000000, 0x00000000bf000000|100%| O|  |TAMS 0x00000000bf000000, 0x00000000be000000| Untracked 
+|  61|0x00000000bf000000, 0x00000000c0000000, 0x00000000c0000000|100%| O|  |TAMS 0x00000000c0000000, 0x00000000bf000000| Untracked 
+|  62|0x00000000c0000000, 0x00000000c1000000, 0x00000000c1000000|100%| O|  |TAMS 0x00000000c0bb7600, 0x00000000c0000000| Untracked 
+|  63|0x00000000c1000000, 0x00000000c2000000, 0x00000000c2000000|100%| O|  |TAMS 0x00000000c1000000, 0x00000000c1000000| Untracked 
+|  64|0x00000000c2000000, 0x00000000c3000000, 0x00000000c3000000|100%| O|  |TAMS 0x00000000c2000000, 0x00000000c2000000| Untracked 
+|  65|0x00000000c3000000, 0x00000000c4000000, 0x00000000c4000000|100%| O|  |TAMS 0x00000000c3000000, 0x00000000c3000000| Untracked 
+|  66|0x00000000c4000000, 0x00000000c5000000, 0x00000000c5000000|100%| O|  |TAMS 0x00000000c4000000, 0x00000000c4000000| Untracked 
+|  67|0x00000000c5000000, 0x00000000c5b26000, 0x00000000c6000000| 69%| O|  |TAMS 0x00000000c5000000, 0x00000000c5000000| Untracked 
+|  68|0x00000000c6000000, 0x00000000c6000000, 0x00000000c7000000|  0%| F|  |TAMS 0x00000000c6000000, 0x00000000c6000000| Untracked 
+|  69|0x00000000c7000000, 0x00000000c7000000, 0x00000000c8000000|  0%| F|  |TAMS 0x00000000c7000000, 0x00000000c7000000| Untracked 
+|  70|0x00000000c8000000, 0x00000000c8000000, 0x00000000c9000000|  0%| F|  |TAMS 0x00000000c8000000, 0x00000000c8000000| Untracked 
+|  71|0x00000000c9000000, 0x00000000c9000000, 0x00000000ca000000|  0%| F|  |TAMS 0x00000000c9000000, 0x00000000c9000000| Untracked 
+|  72|0x00000000ca000000, 0x00000000ca000000, 0x00000000cb000000|  0%| F|  |TAMS 0x00000000ca000000, 0x00000000ca000000| Untracked 
+|  73|0x00000000cb000000, 0x00000000cb000000, 0x00000000cc000000|  0%| F|  |TAMS 0x00000000cb000000, 0x00000000cb000000| Untracked 
+|  74|0x00000000cc000000, 0x00000000cc000000, 0x00000000cd000000|  0%| F|  |TAMS 0x00000000cc000000, 0x00000000cc000000| Untracked 
+|  75|0x00000000cd000000, 0x00000000cd000000, 0x00000000ce000000|  0%| F|  |TAMS 0x00000000cd000000, 0x00000000cd000000| Untracked 
+|  76|0x00000000ce000000, 0x00000000ce000000, 0x00000000cf000000|  0%| F|  |TAMS 0x00000000ce000000, 0x00000000ce000000| Untracked 
+|  77|0x00000000cf000000, 0x00000000d0000000, 0x00000000d0000000|100%| S|CS|TAMS 0x00000000cf000000, 0x00000000cf000000| Complete 
+|  78|0x00000000d0000000, 0x00000000d0000000, 0x00000000d1000000|  0%| F|  |TAMS 0x00000000d0000000, 0x00000000d0000000| Untracked 
+|  79|0x00000000d1000000, 0x00000000d1000000, 0x00000000d2000000|  0%| F|  |TAMS 0x00000000d1000000, 0x00000000d1000000| Untracked 
+|  80|0x00000000d2000000, 0x00000000d2000000, 0x00000000d3000000|  0%| F|  |TAMS 0x00000000d2000000, 0x00000000d2000000| Untracked 
+|  81|0x00000000d3000000, 0x00000000d3000000, 0x00000000d4000000|  0%| F|  |TAMS 0x00000000d3000000, 0x00000000d3000000| Untracked 
+|  82|0x00000000d4000000, 0x00000000d4000000, 0x00000000d5000000|  0%| F|  |TAMS 0x00000000d4000000, 0x00000000d4000000| Untracked 
+|  83|0x00000000d5000000, 0x00000000d5000000, 0x00000000d6000000|  0%| F|  |TAMS 0x00000000d5000000, 0x00000000d5000000| Untracked 
+|  84|0x00000000d6000000, 0x00000000d6000000, 0x00000000d7000000|  0%| F|  |TAMS 0x00000000d6000000, 0x00000000d6000000| Untracked 
+|  85|0x00000000d7000000, 0x00000000d7000000, 0x00000000d8000000|  0%| F|  |TAMS 0x00000000d7000000, 0x00000000d7000000| Untracked 
+|  86|0x00000000d8000000, 0x00000000d8000000, 0x00000000d9000000|  0%| F|  |TAMS 0x00000000d8000000, 0x00000000d8000000| Untracked 
+|  87|0x00000000d9000000, 0x00000000d9000000, 0x00000000da000000|  0%| F|  |TAMS 0x00000000d9000000, 0x00000000d9000000| Untracked 
+|  88|0x00000000da000000, 0x00000000da000000, 0x00000000db000000|  0%| F|  |TAMS 0x00000000da000000, 0x00000000da000000| Untracked 
+|  89|0x00000000db000000, 0x00000000db000000, 0x00000000dc000000|  0%| F|  |TAMS 0x00000000db000000, 0x00000000db000000| Untracked 
+|  90|0x00000000dc000000, 0x00000000dc000000, 0x00000000dd000000|  0%| F|  |TAMS 0x00000000dc000000, 0x00000000dc000000| Untracked 
+|  91|0x00000000dd000000, 0x00000000dd000000, 0x00000000de000000|  0%| F|  |TAMS 0x00000000dd000000, 0x00000000dd000000| Untracked 
+|  92|0x00000000de000000, 0x00000000de000000, 0x00000000df000000|  0%| F|  |TAMS 0x00000000de000000, 0x00000000de000000| Untracked 
+|  93|0x00000000df000000, 0x00000000df000000, 0x00000000e0000000|  0%| F|  |TAMS 0x00000000df000000, 0x00000000df000000| Untracked 
+|  94|0x00000000e0000000, 0x00000000e0000000, 0x00000000e1000000|  0%| F|  |TAMS 0x00000000e0000000, 0x00000000e0000000| Untracked 
+|  95|0x00000000e1000000, 0x00000000e1000000, 0x00000000e2000000|  0%| F|  |TAMS 0x00000000e1000000, 0x00000000e1000000| Untracked 
+|  96|0x00000000e2000000, 0x00000000e2000000, 0x00000000e3000000|  0%| F|  |TAMS 0x00000000e2000000, 0x00000000e2000000| Untracked 
+|  97|0x00000000e3000000, 0x00000000e3000000, 0x00000000e4000000|  0%| F|  |TAMS 0x00000000e3000000, 0x00000000e3000000| Untracked 
+|  98|0x00000000e4000000, 0x00000000e4000000, 0x00000000e5000000|  0%| F|  |TAMS 0x00000000e4000000, 0x00000000e4000000| Untracked 
+|  99|0x00000000e5000000, 0x00000000e5000000, 0x00000000e6000000|  0%| F|  |TAMS 0x00000000e5000000, 0x00000000e5000000| Untracked 
+| 100|0x00000000e6000000, 0x00000000e6000000, 0x00000000e7000000|  0%| F|  |TAMS 0x00000000e6000000, 0x00000000e6000000| Untracked 
+| 101|0x00000000e7000000, 0x00000000e7000000, 0x00000000e8000000|  0%| F|  |TAMS 0x00000000e7000000, 0x00000000e7000000| Untracked 
+| 102|0x00000000e8000000, 0x00000000e8000000, 0x00000000e9000000|  0%| F|  |TAMS 0x00000000e8000000, 0x00000000e8000000| Untracked 
+| 103|0x00000000e9000000, 0x00000000e9000000, 0x00000000ea000000|  0%| F|  |TAMS 0x00000000e9000000, 0x00000000e9000000| Untracked 
+| 104|0x00000000ea000000, 0x00000000ea000000, 0x00000000eb000000|  0%| F|  |TAMS 0x00000000ea000000, 0x00000000ea000000| Untracked 
+| 105|0x00000000eb000000, 0x00000000eb000000, 0x00000000ec000000|  0%| F|  |TAMS 0x00000000eb000000, 0x00000000eb000000| Untracked 
+| 106|0x00000000ec000000, 0x00000000ec000000, 0x00000000ed000000|  0%| F|  |TAMS 0x00000000ec000000, 0x00000000ec000000| Untracked 
+| 107|0x00000000ed000000, 0x00000000ed000000, 0x00000000ee000000|  0%| F|  |TAMS 0x00000000ed000000, 0x00000000ed000000| Untracked 
+| 108|0x00000000ee000000, 0x00000000ee000000, 0x00000000ef000000|  0%| F|  |TAMS 0x00000000ee000000, 0x00000000ee000000| Untracked 
+| 109|0x00000000ef000000, 0x00000000ef000000, 0x00000000f0000000|  0%| F|  |TAMS 0x00000000ef000000, 0x00000000ef000000| Untracked 
+| 110|0x00000000f0000000, 0x00000000f0000000, 0x00000000f1000000|  0%| F|  |TAMS 0x00000000f0000000, 0x00000000f0000000| Untracked 
+| 111|0x00000000f1000000, 0x00000000f1000000, 0x00000000f2000000|  0%| F|  |TAMS 0x00000000f1000000, 0x00000000f1000000| Untracked 
+| 112|0x00000000f2000000, 0x00000000f2000000, 0x00000000f3000000|  0%| F|  |TAMS 0x00000000f2000000, 0x00000000f2000000| Untracked 
+| 113|0x00000000f3000000, 0x00000000f3000800, 0x00000000f4000000|  0%| E|  |TAMS 0x00000000f3000000, 0x00000000f3000000| Complete 
+| 114|0x00000000f4000000, 0x00000000f5000000, 0x00000000f5000000|100%| E|CS|TAMS 0x00000000f4000000, 0x00000000f4000000| Complete 
+| 119|0x00000000f9000000, 0x00000000fa000000, 0x00000000fa000000|100%| E|CS|TAMS 0x00000000f9000000, 0x00000000f9000000| Complete 
+| 121|0x00000000fb000000, 0x00000000fc000000, 0x00000000fc000000|100%| E|CS|TAMS 0x00000000fb000000, 0x00000000fb000000| Complete 
+|1916|0x00000007fe000000, 0x00000007fef47000, 0x00000007ff000000| 95%|OA|  |TAMS 0x00000007fef47000, 0x00000007fe000000| Untracked 
+|1917|0x00000007ff000000, 0x00000007ff092000, 0x0000000800000000|  3%|CA|  |TAMS 0x00000007ff092000, 0x00000007ff000000| Untracked 
+
+Card table byte_map: [0x000078e9fdc19000,0x000078ea01809000] _byte_map_base: 0x000078e9fd809000
+
+Marking Bits (Prev, Next): (CMBitMap*) 0x000078ea2005df30, (CMBitMap*) 0x000078ea2005df70
+ Prev Bits: [0x000078e9dc0a9000, 0x000078e9fa029000)
+ Next Bits: [0x000078e9be129000, 0x000078e9dc0a9000)
+
+Polling page: 0x000078ea259ec000
+
+Metaspace:
+
+Usage:
+  Non-class:     21.08 MB used.
+      Class:      2.54 MB used.
+       Both:     23.62 MB used.
+
+Virtual space:
+  Non-class space:       64.00 MB reserved,      21.19 MB ( 33%) committed,  1 nodes.
+      Class space:        1.00 GB reserved,       2.62 MB ( <1%) committed,  1 nodes.
+             Both:        1.06 GB reserved,      23.81 MB (  2%) committed. 
+
+Chunk freelists:
+   Non-Class:  10.27 MB
+       Class:  13.38 MB
+        Both:  23.64 MB
+
+MaxMetaspaceSize: unlimited
+CompressedClassSpaceSize: 1.00 GB
+Initial GC threshold: 21.00 MB
+Current GC threshold: 38.75 MB
+CDS: on
+MetaspaceReclaimPolicy: balanced
+ - commit_granule_bytes: 65536.
+ - commit_granule_words: 8192.
+ - virtual_space_node_default_size: 8388608.
+ - enlarge_chunks_in_place: 1.
+ - new_chunks_are_fully_committed: 0.
+ - uncommit_free_chunks: 1.
+ - use_allocation_guard: 0.
+ - handle_deallocations: 1.
+
+
+Internal statistics:
+
+num_allocs_failed_limit: 3.
+num_arena_births: 130.
+num_arena_deaths: 0.
+num_vsnodes_births: 2.
+num_vsnodes_deaths: 0.
+num_space_committed: 379.
+num_space_uncommitted: 0.
+num_chunks_returned_to_freelist: 3.
+num_chunks_taken_from_freelist: 854.
+num_chunk_merges: 3.
+num_chunk_splits: 715.
+num_chunks_enlarged: 640.
+num_inconsistent_stats: 0.
+
+CodeHeap 'non-profiled nmethods': size=117208Kb used=3004Kb max_used=3004Kb free=114203Kb
+ bounds [0x000078ea0e98a000, 0x000078ea0ec7a000, 0x000078ea15c00000]
+CodeHeap 'profiled nmethods': size=117208Kb used=5143Kb max_used=5899Kb free=112064Kb
+ bounds [0x000078ea06c00000, 0x000078ea071f0000, 0x000078ea0de76000]
+CodeHeap 'non-nmethods': size=11344Kb used=2964Kb max_used=7453Kb free=8379Kb
+ bounds [0x000078ea0de76000, 0x000078ea0e5c6000, 0x000078ea0e98a000]
+ total_blobs=3798 nmethods=2544 adapters=1162
+ compilation: enabled
+              stopped_count=0, restarted_count=0
+ full_count=0
+
+JVMCI Events (20 events):
+Event: 500.923 Thread 0x000078ea2021d1e0 compacted oop handles in JVMCI runtime 3 from 198 to 194
+Event: 500.941 Thread 0x000078e0980165b0 compacted oop handles in JVMCI runtime 2 from 250 to 242
+Event: 500.989 Thread 0x000078e0980165b0 compacted oop handles in JVMCI runtime 2 from 242 to 81
+Event: 501.009 Thread 0x000078e93c09aed0 compacted oop handles in JVMCI runtime 0 from 250 to 192
+Event: 501.318 Thread 0x000078e93c563dd0 compacted oop handles in JVMCI runtime 1 from 479 to 340
+Event: 501.564 Thread 0x000078e93c09aed0 detaching from JVMCI runtime 0: stopping idle compiler thread (0 other threads still attached)
+Event: 501.564 Thread 0x000078e93c09aed0 shutting down HotSpotJVMCIRuntime for JVMCI runtime 0
+Event: 501.564 Thread 0x000078e0980165b0 detaching from JVMCI runtime 2: stopping idle compiler thread (0 other threads still attached)
+Event: 501.564 Thread 0x000078e0980165b0 shutting down HotSpotJVMCIRuntime for JVMCI runtime 2
+Event: 501.564 Thread 0x000078e93c09aed0 compacted oop handles in JVMCI runtime 0 from 192 to 147
+Event: 501.564 Thread 0x000078e0980165b0 shut down JVMCI runtime 2
+Event: 501.564 Thread 0x000078e93c09aed0 shut down JVMCI runtime 0
+Event: 501.565 Thread 0x000078e93c563dd0 compacted oop handles in JVMCI runtime 1 from 341 to 253
+Event: 501.567 Thread 0x000078e93c563dd0 compacted oop handles in JVMCI runtime 1 from 256 to 255
+Event: 501.572 Thread 0x000078e93c09aed0 destroyed JavaVM[44]@0x000078ae36856490 for JVMCI runtime 0
+Event: 501.572 Thread 0x000078e93c09aed0 releasing handles for JVMCI runtime 0: oop handles=147, metadata handles={total=384, live=361, blocks=25}
+Event: 501.572 Thread 0x000078e93c09aed0 detached from JVMCI runtime 0
+Event: 501.576 Thread 0x000078e0980165b0 destroyed JavaVM[43]@0x000078be36a56490 for JVMCI runtime 2
+Event: 501.576 Thread 0x000078e0980165b0 releasing handles for JVMCI runtime 2: oop handles=81, metadata handles={total=832, live=815, blocks=29}
+Event: 501.576 Thread 0x000078e0980165b0 detached from JVMCI runtime 2
+
+Compilation events (20 events):
+Event: 501.569 Thread 0x000078ea2021e720 3120       3       nn.FCATrainer$$Lambda$119/0x000078e96029db90::apply (12 bytes)
+Event: 501.569 Thread 0x000078e9400eebc0 nmethod 3118 0x000078ea06c11310 code [0x000078ea06c114c0, 0x000078ea06c11870]
+Event: 501.569 Thread 0x000078e9400eebc0 3121       3       nn.FCATrainer::$anonfun$1 (11 bytes)
+Event: 501.569 Thread 0x000078e084051b90 nmethod 3119 0x000078ea06c10d10 code [0x000078ea06c10ee0, 0x000078ea06c111e0]
+Event: 501.569 Thread 0x000078e084051b90 3122       3       scala.collection.mutable.ArrayBuilder$ofRef::addOne (6 bytes)
+Event: 501.569 Thread 0x000078e9400eebc0 nmethod 3121 0x000078ea06c10710 code [0x000078ea06c108c0, 0x000078ea06c10be0]
+Event: 501.569 Thread 0x000078e9400eebc0 3123       3       scala.collection.mutable.ArrayBuilder$ofRef::addOne (32 bytes)
+Event: 501.569 Thread 0x000078ea2021e720 nmethod 3120 0x000078ea06c0fe10 code [0x000078ea06c0ffe0, 0x000078ea06c105e0]
+Event: 501.569 Thread 0x000078ea2021e720 3124       3       scala.collection.mutable.ArrayBuilder::ensureSize (24 bytes)
+Event: 501.569 Thread 0x000078ea2021e720 nmethod 3124 0x000078ea06c0f410 code [0x000078ea06c0f5e0, 0x000078ea06c0fc90]
+Event: 501.569 Thread 0x000078ea2021e720 3125       3       torch.ops.IndexingSlicingJoiningOps$$Lambda$120/0x000078e96029f360::apply (8 bytes)
+Event: 501.569 Thread 0x000078e084051b90 nmethod 3122 0x000078ea06e18790 code [0x000078ea06e18980, 0x000078ea06e19c30]
+Event: 501.569 Thread 0x000078e9400eebc0 nmethod 3123 0x000078ea06e17190 code [0x000078ea06e17380, 0x000078ea06e185b0]
+Event: 501.569 Thread 0x000078e9400eebc0 3126       3       torch.ops.IndexingSlicingJoiningOps::toArrayRef$$anonfun$1 (5 bytes)
+Event: 501.569 Thread 0x000078ea2021e720 nmethod 3125 0x000078ea06c0eb90 code [0x000078ea06c0ed40, 0x000078ea06c0f2f0]
+Event: 501.569 Thread 0x000078e9400eebc0 nmethod 3126 0x000078ea06c0e610 code [0x000078ea06c0e7a0, 0x000078ea06c0ea90]
+Event: 501.581 Thread 0x000078ea2021e720 3129       3       scala.Array$::slowcopy (48 bytes)
+Event: 501.581 Thread 0x000078ea2021e720 nmethod 3129 0x000078ea06c0e010 code [0x000078ea06c0e1e0, 0x000078ea06c0e450]
+Event: 501.721 Thread 0x000078ea2021e720 3130       3       org.bytedeco.javacpp.PointerScope::attach (168 bytes)
+Event: 501.722 Thread 0x000078ea2021e720 nmethod 3130 0x000078ea06d01610 code [0x000078ea06d01a80, 0x000078ea06d044e0]
+
+GC Heap History (20 events):
+Event: 473.484 GC heap before
+{Heap before GC invocations=67 (full 0):
+ garbage-first heap   total 1376256K, used 1161648K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 18 young (294912K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 473.494 GC heap after
+{Heap after GC invocations=68 (full 0):
+ garbage-first heap   total 1376256K, used 913241K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 2 young (32768K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 480.317 GC heap before
+{Heap before GC invocations=68 (full 0):
+ garbage-first heap   total 1376256K, used 1159001K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 17 young (278528K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 480.327 GC heap after
+{Heap after GC invocations=69 (full 0):
+ garbage-first heap   total 1376256K, used 925540K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 2 young (32768K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 487.146 GC heap before
+{Heap before GC invocations=69 (full 0):
+ garbage-first heap   total 1376256K, used 1171300K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 17 young (278528K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 487.156 GC heap after
+{Heap after GC invocations=70 (full 0):
+ garbage-first heap   total 1376256K, used 936248K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 3 young (49152K), 3 survivors (49152K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 493.122 GC heap before
+{Heap before GC invocations=70 (full 0):
+ garbage-first heap   total 1376256K, used 1149240K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 16 young (262144K), 3 survivors (49152K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 493.133 GC heap after
+{Heap after GC invocations=71 (full 0):
+ garbage-first heap   total 1376256K, used 947929K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 2 young (32768K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 499.063 GC heap before
+{Heap before GC invocations=71 (full 0):
+ garbage-first heap   total 1376256K, used 1160921K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 15 young (245760K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 499.072 GC heap after
+{Heap after GC invocations=72 (full 0):
+ garbage-first heap   total 1376256K, used 958678K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 2 young (32768K), 2 survivors (32768K)
+ Metaspace       used 22882K, committed 23040K, reserved 1114112K
+  class space    used 2457K, committed 2560K, reserved 1048576K
+}
+Event: 500.252 GC heap before
+{Heap before GC invocations=72 (full 0):
+ garbage-first heap   total 1376256K, used 1171670K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 14 young (229376K), 2 survivors (32768K)
+ Metaspace       used 23124K, committed 23360K, reserved 1114112K
+  class space    used 2497K, committed 2624K, reserved 1048576K
+}
+Event: 500.277 GC heap after
+{Heap after GC invocations=73 (full 0):
+ garbage-first heap   total 1376256K, used 1076801K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 2 young (32768K), 2 survivors (32768K)
+ Metaspace       used 23124K, committed 23360K, reserved 1114112K
+  class space    used 2497K, committed 2624K, reserved 1048576K
+}
+Event: 500.462 GC heap before
+{Heap before GC invocations=73 (full 0):
+ garbage-first heap   total 1376256K, used 1125953K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 5 young (81920K), 2 survivors (32768K)
+ Metaspace       used 23571K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.472 GC heap after
+{Heap after GC invocations=74 (full 0):
+ garbage-first heap   total 1376256K, used 1099099K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 1 young (16384K), 1 survivors (16384K)
+ Metaspace       used 23571K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.587 GC heap before
+{Heap before GC invocations=74 (full 0):
+ garbage-first heap   total 1376256K, used 1148251K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 4 young (65536K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.592 GC heap after
+{Heap after GC invocations=75 (full 0):
+ garbage-first heap   total 1376256K, used 1113080K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 1 young (16384K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.720 GC heap before
+{Heap before GC invocations=75 (full 0):
+ garbage-first heap   total 1376256K, used 1162232K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 4 young (65536K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.726 GC heap after
+{Heap after GC invocations=76 (full 0):
+ garbage-first heap   total 1376256K, used 1127340K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 1 young (16384K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.828 GC heap before
+{Heap before GC invocations=76 (full 0):
+ garbage-first heap   total 1376256K, used 1176492K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 4 young (65536K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+Event: 500.835 GC heap after
+{Heap after GC invocations=77 (full 0):
+ garbage-first heap   total 1851392K, used 1141756K [0x0000000082000000, 0x0000000800000000)
+  region size 16384K, 1 young (16384K), 1 survivors (16384K)
+ Metaspace       used 23573K, committed 23808K, reserved 1114112K
+  class space    used 2557K, committed 2688K, reserved 1048576K
+}
+
+Deoptimization events (20 events):
+Event: 500.987 Thread 0x000078ea20026380 Uncommon trap: trap_request=0xffffffcd fr.pc=0x000078ea0ebc79a1 relative=0x0000000000000761
+Event: 500.987 Thread 0x000078ea20026380 Uncommon trap: reason=intrinsic_or_type_checked_inlining action=reinterpret pc=0x000078ea0ebc79a1 method=scala.runtime.function.JProcedure1.apply(Ljava/lang/Object;)Lscala/runtime/BoxedUnit; @ 0 jvmci
+Event: 500.987 Thread 0x000078ea20026380 DEOPT PACKING pc=0x000078ea0ebc79a1 sp=0x000078ea255fe350
+Event: 500.987 Thread 0x000078ea20026380 DEOPT UNPACKING pc=0x000078ea0dec8625 sp=0x000078ea255fd868 mode 3
+Event: 500.995 Thread 0x000078ea20026380 Uncommon trap: trap_request=0xffffffcd fr.pc=0x000078ea0eb6e3e7 relative=0x00000000000002c7
+Event: 500.995 Thread 0x000078ea20026380 Uncommon trap: reason=intrinsic_or_type_checked_inlining action=reinterpret pc=0x000078ea0eb6e3e7 method=scala.Array$.copyOf(Ljava/lang/Object;I)Ljava/lang/Object; @ 0 jvmci
+Event: 500.995 Thread 0x000078ea20026380 DEOPT PACKING pc=0x000078ea0eb6e3e7 sp=0x000078ea255fdab0
+Event: 500.995 Thread 0x000078ea20026380 DEOPT UNPACKING pc=0x000078ea0dec8625 sp=0x000078ea255fcf38 mode 3
+Event: 501.039 Thread 0x000078ea20026380 Uncommon trap: trap_request=0xffffffed fr.pc=0x000078ea0eaa88a9 relative=0x0000000000000d49
+Event: 501.039 Thread 0x000078ea20026380 Uncommon trap: reason=null_assert_or_unreached0 action=reinterpret pc=0x000078ea0eaa88a9 method=java.util.ArrayDeque.addFirst(Ljava/lang/Object;)V @ 34 jvmci
+Event: 501.039 Thread 0x000078ea20026380 DEOPT PACKING pc=0x000078ea0eaa88a9 sp=0x000078ea255fd210
+Event: 501.039 Thread 0x000078ea20026380 DEOPT UNPACKING pc=0x000078ea0dec8625 sp=0x000078ea255fc628 mode 3
+Event: 501.039 Thread 0x000078ea20026380 Uncommon trap: trap_request=0xffffffed fr.pc=0x000078ea0eab9c69 relative=0x0000000000000a49
+Event: 501.039 Thread 0x000078ea20026380 Uncommon trap: reason=null_assert_or_unreached0 action=reinterpret pc=0x000078ea0eab9c69 method=java.util.ArrayDeque.grow(I)V @ 0 jvmci
+Event: 501.039 Thread 0x000078ea20026380 DEOPT PACKING pc=0x000078ea0eab9c69 sp=0x000078ea255fd0d0
+Event: 501.039 Thread 0x000078ea20026380 DEOPT UNPACKING pc=0x000078ea0dec8625 sp=0x000078ea255fc580 mode 3
+Event: 501.721 Thread 0x000078ea20026380 Uncommon trap: trap_request=0xffffffed fr.pc=0x000078ea0ea7fcbc relative=0x0000000000000b7c
+Event: 501.721 Thread 0x000078ea20026380 Uncommon trap: reason=null_assert_or_unreached0 action=reinterpret pc=0x000078ea0ea7fcbc method=java.util.ArrayDeque.addFirst(Ljava/lang/Object;)V @ 34 jvmci
+Event: 501.721 Thread 0x000078ea20026380 DEOPT PACKING pc=0x000078ea0ea7fcbc sp=0x000078ea255fd0c0
+Event: 501.721 Thread 0x000078ea20026380 DEOPT UNPACKING pc=0x000078ea0dec8625 sp=0x000078ea255fc548 mode 3
+
+Classes unloaded (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (20 events):
+Event: 1.211 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000fbf05978}: 'void java.lang.invoke.Invokers$Holder.invoke_MT(java.lang.Object, java.lang.Object)'> (0x00000000fbf05978) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 1.831 Thread 0x000078ea20026380 Implicit null exception at 0x000078ea0eac3e3f to 0x000078ea0eac41c2
+Event: 26.305 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bed7e780}: 'int java.lang.invoke.DirectMethodHandle$Holder.invokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000bed7e780) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.327 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bef17f40}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, long, int)'> (0x00000000bef17f40) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.328 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bef2f878}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000bef2f878) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.329 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bef3a588}: 'long java.lang.invoke.DirectMethodHandle$Holder.invokeStatic(java.lang.Object, int)'> (0x00000000bef3a588) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.334 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bd10d7e8}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, long)'> (0x00000000bd10d7e8) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.335 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bd11bd38}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000bd11bd38) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.335 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bd1206f8}: 'java.lang.Object java.lang.invoke.Invokers$Holder.linkToTargetMethod(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000bd1206f8) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.336 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bd12d578}: 'void java.lang.invoke.DirectMethodHandle$Holder.invokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000bd12d578) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 26.399 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000bd73a568}: 'long java.lang.invoke.DirectMethodHandle$Holder.invokeStatic(java.lang.Object, java.lang.Object)'> (0x00000000bd73a568) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 499.880 Thread 0x000078ea20026380 Implicit null exception at 0x000078ea0ea56133 to 0x000078ea0ea56167
+Event: 499.952 Thread 0x000078ea20026380 Implicit null exception at 0x000078ea0eb1a95c to 0x000078ea0eb1ac84
+Event: 499.953 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000cf1f4a58}: 'long java.lang.invoke.DirectMethodHandle$Holder.invokeStatic(java.lang.Object, long)'> (0x00000000cf1f4a58) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 499.954 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000cf1faba8}: 'long java.lang.invoke.DirectMethodHandle$Holder.invokeStatic(java.lang.Object)'> (0x00000000cf1faba8) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758]
+Event: 500.231 Thread 0x000078ea20026380 Implicit null exception at 0x000078ea0ebe6e6b to 0x000078ea0ebe9c19
+Event: 500.231 Thread 0x000078ea20026380 Implicit null exception at 0x000078ea0ebd7816 to 0x000078ea0ebd7ac1
+Event: 500.978 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000f469c8d0}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, long)'> (0x00000000f469c8d0) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line 758
+Event: 500.989 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000f4af38e0}: 'java.lang.Object java.lang.invoke.DirectMethodHandle$Holder.newInvokeSpecial(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000f4af38e0) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.c
+Event: 500.990 Thread 0x000078ea20026380 Exception <a 'java/lang/NoSuchMethodError'{0x00000000f4afe078}: 'java.lang.Object java.lang.invoke.Invokers$Holder.linkToTargetMethod(java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object)'> (0x00000000f4afe078) 
+thrown [open/src/hotspot/share/interpreter/linkResolver.cpp, line
+
+VM Operations (20 events):
+Event: 500.365 Executing VM operation: HandshakeAllThreads
+Event: 500.365 Executing VM operation: HandshakeAllThreads done
+Event: 500.405 Executing VM operation: HandshakeAllThreads
+Event: 500.405 Executing VM operation: HandshakeAllThreads done
+Event: 500.462 Executing VM operation: G1CollectForAllocation
+Event: 500.472 Executing VM operation: G1CollectForAllocation done
+Event: 500.587 Executing VM operation: G1CollectForAllocation
+Event: 500.592 Executing VM operation: G1CollectForAllocation done
+Event: 500.719 Executing VM operation: G1CollectForAllocation
+Event: 500.726 Executing VM operation: G1CollectForAllocation done
+Event: 500.828 Executing VM operation: G1CollectForAllocation
+Event: 500.835 Executing VM operation: G1CollectForAllocation done
+Event: 500.867 Executing VM operation: G1Concurrent
+Event: 500.868 Executing VM operation: G1Concurrent done
+Event: 500.889 Executing VM operation: HandshakeAllThreads
+Event: 500.889 Executing VM operation: HandshakeAllThreads done
+Event: 500.937 Executing VM operation: G1Concurrent
+Event: 500.938 Executing VM operation: G1Concurrent done
+Event: 501.938 Executing VM operation: Cleanup
+Event: 501.938 Executing VM operation: Cleanup done
+
+Events (20 events):
+Event: 499.753 Protecting memory [0x000078e109000000,0x000078e109004000] with protection modes 0
+Event: 499.753 Thread 0x000078e93c0967c0 Thread added: 0x000078e93c0967c0
+Event: 499.753 Protecting memory [0x000078e108a00000,0x000078e108a04000] with protection modes 0
+Event: 500.079 Thread 0x000078e93c564890 Thread exited: 0x000078e93c564890
+Event: 500.079 Thread 0x000078e93c0967c0 Thread exited: 0x000078e93c0967c0
+Event: 500.080 Thread 0x000078e0980165b0 Thread added: 0x000078e0980165b0
+Event: 500.080 Protecting memory [0x000078e108a00000,0x000078e108a04000] with protection modes 0
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea0714dd10
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea07154c90
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea07156490
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea07158c90
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea0717ad90
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea07196090
+Event: 500.408 Thread 0x000078ea20227b90 flushing nmethod 0x000078ea071b2890
+Event: 500.419 Thread 0x000078e93c09aed0 Thread added: 0x000078e93c09aed0
+Event: 500.419 Protecting memory [0x000078e109000000,0x000078e109004000] with protection modes 0
+Event: 500.892 Thread 0x000078e084051b90 Thread added: 0x000078e084051b90
+Event: 500.892 Protecting memory [0x000078e108600000,0x000078e108604000] with protection modes 0
+Event: 501.576 Thread 0x000078e93c09aed0 Thread exited: 0x000078e93c09aed0
+Event: 501.576 Thread 0x000078e0980165b0 Thread exited: 0x000078e0980165b0
+
+
+Dynamic libraries:
+82000000-f5000000 rw-p 00000000 00:00 0 
+f5000000-f9000000 ---p 00000000 00:00 0 
+f9000000-fa000000 rw-p 00000000 00:00 0 
+fa000000-fb000000 ---p 00000000 00:00 0 
+fb000000-fc000000 rw-p 00000000 00:00 0 
+fc000000-7fe000000 ---p 00000000 00:00 0 
+7fe000000-7fef00000 rw-p 00000000 00:00 0 
+7fef00000-7fef47000 rw-p 00ca6000 103:01 6590653                         /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/classes.jsa
+7fef47000-7ff000000 rw-p 00000000 00:00 0 
+7ff000000-7ff092000 rw-p 00c14000 103:01 6590653                         /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/classes.jsa
+7ff092000-800000000 rw-p 00000000 00:00 0 
+800000000-900200000 ---p 00000000 00:00 0 
+5b285947d000-5b285947e000 r-xp 00000000 103:01 6590263                   /home/wolf/.jdks/graalvm-jdk-17.0.12/bin/java
+5b285947f000-5b2859480000 r--p 00001000 103:01 6590263                   /home/wolf/.jdks/graalvm-jdk-17.0.12/bin/java
+5b2859480000-5b2859481000 rw-p 00002000 103:01 6590263                   /home/wolf/.jdks/graalvm-jdk-17.0.12/bin/java
+5b2891d84000-5b2891e14000 rw-p 00000000 00:00 0                          [heap]
+78b635e00000-78b635f00000 ---p 00000000 00:00 0 
+78b635f00000-78b6365f4000 r--p 01a65000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78b6365f4000-78b636700000 r--p 00000000 00:00 0 
+78b636700000-78b636775000 rw-p 00000000 00:00 0 
+78b636775000-78b636a7e000 rw-p 022da000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78b636a7e000-78b6370b3000 r--p 025e3000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78b6370b3000-78b6370fd000 rw-p 00000000 00:00 0 
+78b6370fd000-78b637100000 ---p 00000000 00:00 0 
+78b637100000-78b639a3b000 rw-p 00000000 00:00 0 
+78b639a3b000-78be35e00000 ---p 00000000 00:00 0 
+78c636000000-78c636c06000 r--p 00000000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c636c06000-78c63fccf000 r-xp 00c06000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c63fccf000-78c641b0d000 r--p 09ccf000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c641b0d000-78c641b0e000 ---p 0bb0d000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c641b0e000-78c641cff000 r--p 0bb0d000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c641cff000-78c641d37000 rw-p 0bcfe000 103:01 6570493                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cpu.so
+78c641d37000-78c641db6000 rw-p 00000000 00:00 0 
+78c641e00000-78c642471000 r-xp 00000000 103:01 6570473                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libcupti.so.12
+78c642471000-78c642671000 ---p 00671000 103:01 6570473                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libcupti.so.12
+78c642671000-78c6426be000 r--p 00671000 103:01 6570473                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libcupti.so.12
+78c6426be000-78c642754000 rw-p 006be000 103:01 6570473                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libcupti.so.12
+78c642754000-78c64278d000 rw-p 00000000 00:00 0 
+78c642800000-78c649f4d000 r-xp 00000000 103:01 6570426                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_train.so.8
+78c649f4d000-78c64a14d000 ---p 0774d000 103:01 6570426                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_train.so.8
+78c64a14d000-78c64a199000 r--p 0774d000 103:01 6570426                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_train.so.8
+78c64a199000-78c64a19f000 rw-p 07799000 103:01 6570426                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_train.so.8
+78c64a19f000-78c64a22a000 rw-p 00000000 00:00 0 
+78c64a400000-78c66bded000 r-xp 00000000 103:01 6570424                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_infer.so.8
+78c66bded000-78c66bfed000 ---p 219ed000 103:01 6570424                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_infer.so.8
+78c66bfed000-78c66c0cc000 r--p 219ed000 103:01 6570424                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_infer.so.8
+78c66c0cc000-78c66c63c000 rw-p 21acc000 103:01 6570424                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_cnn_infer.so.8
+78c66c63c000-78c66c979000 rw-p 00000000 00:00 0 
+78c66ca00000-78c6738b3000 r-xp 00000000 103:01 6570422                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_train.so.8
+78c6738b3000-78c673ab3000 ---p 06eb3000 103:01 6570422                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_train.so.8
+78c673ab3000-78c673ab9000 r--p 06eb3000 103:01 6570422                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_train.so.8
+78c673ab9000-78c673aba000 rw-p 06eb9000 103:01 6570422                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_train.so.8
+78c673aba000-78c673b5c000 rw-p 00000000 00:00 0 
+78c673c00000-78c67b346000 r-xp 00000000 103:01 6570420                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_infer.so.8
+78c67b346000-78c67b546000 ---p 07746000 103:01 6570420                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_infer.so.8
+78c67b546000-78c67b54c000 r--p 07746000 103:01 6570420                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_infer.so.8
+78c67b54c000-78c67b54d000 rw-p 0774c000 103:01 6570420                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_adv_infer.so.8
+78c67b54d000-78c67b5ba000 rw-p 00000000 00:00 0 
+78c67b600000-78c67f99e000 r-xp 00000000 103:01 6570418                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_train.so.8
+78c67f99e000-78c67fb9e000 ---p 0439e000 103:01 6570418                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_train.so.8
+78c67fb9e000-78c67fba3000 r--p 0439e000 103:01 6570418                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_train.so.8
+78c67fba3000-78c67fba4000 rw-p 043a3000 103:01 6570418                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_train.so.8
+78c67fba4000-78c67fbdb000 rw-p 00000000 00:00 0 
+78c67fc00000-78c685294000 r-xp 00000000 103:01 6570416                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_infer.so.8
+78c685294000-78c685494000 ---p 05694000 103:01 6570416                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_infer.so.8
+78c685494000-78c68549e000 r--p 05694000 103:01 6570416                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_infer.so.8
+78c68549e000-78c68549f000 rw-p 0569e000 103:01 6570416                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn_ops_infer.so.8
+78c68549f000-78c6854d8000 rw-p 00000000 00:00 0 
+78c685600000-78c688910000 r-xp 00000000 103:01 6570414                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvrtc.so.12
+78c688910000-78c688b0f000 ---p 03310000 103:01 6570414                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvrtc.so.12
+78c688b0f000-78c689116000 r--p 0330f000 103:01 6570414                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvrtc.so.12
+78c689116000-78c6891fa000 rw-p 03916000 103:01 6570414                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvrtc.so.12
+78c6891fa000-78c6892f8000 rw-p 00000000 00:00 0 
+78c689400000-78c695b8c000 r-xp 00000000 103:01 6570412                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnccl.so.2
+78c695b8c000-78c695d8c000 ---p 0c78c000 103:01 6570412                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnccl.so.2
+78c695d8c000-78c695d95000 r--p 0c78c000 103:01 6570412                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnccl.so.2
+78c695d95000-78c695da1000 rw-p 0c795000 103:01 6570412                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnccl.so.2
+78c695da1000-78c695db5000 rw-p 00000000 00:00 0 
+78c695e00000-78c69cc2d000 r-xp 00000000 103:01 6570408                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusolver.so.11
+78c69cc2d000-78c69ce2d000 ---p 06e2d000 103:01 6570408                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusolver.so.11
+78c69ce2d000-78c69ce3a000 r--p 06e2d000 103:01 6570408                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusolver.so.11
+78c69ce3a000-78c69ce48000 rw-p 06e3a000 103:01 6570408                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusolver.so.11
+78c69ce48000-78c69ce53000 rw-p 00000000 00:00 0 
+78c69d000000-78c6acea4000 r-xp 00000000 103:01 6570406                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusparse.so.12
+78c6acea4000-78c6ad0a4000 ---p 0fea4000 103:01 6570406                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusparse.so.12
+78c6ad0a4000-78c6ad0b3000 r--p 0fea4000 103:01 6570406                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusparse.so.12
+78c6ad0b3000-78c6ad0cf000 rw-p 0feb3000 103:01 6570406                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcusparse.so.12
+78c6ad0cf000-78c6ad0d4000 rw-p 00000000 00:00 0 
+78c6ad200000-78c6afda9000 r-xp 00000000 103:01 6570404                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvJitLink.so.12
+78c6afda9000-78c6affa9000 ---p 02ba9000 103:01 6570404                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvJitLink.so.12
+78c6affa9000-78c6b0554000 r--p 02ba9000 103:01 6570404                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvJitLink.so.12
+78c6b0554000-78c6b05c6000 rw-p 03154000 103:01 6570404                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvJitLink.so.12
+78c6b05c6000-78c6b063c000 rw-p 00000000 00:00 0 
+78c6b0800000-78c6b4f9b000 r-xp 00000000 103:01 6570402                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcurand.so.10
+78c6b4f9b000-78c6b519b000 ---p 0479b000 103:01 6570402                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcurand.so.10
+78c6b519b000-78c6b51a1000 r--p 0479b000 103:01 6570402                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcurand.so.10
+78c6b51a1000-78c6b65cd000 rw-p 047a1000 103:01 6570402                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcurand.so.10
+78c6b65cd000-78c6b6c05000 rw-p 00000000 00:00 0 
+78c6b6e00000-78c6b762a000 r-xp 00000000 103:01 6570400                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcufft.so.11
+78c6b762a000-78c6b782a000 ---p 0082a000 103:01 6570400                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcufft.so.11
+78c6b782a000-78c6b783b000 r--p 0082a000 103:01 6570400                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcufft.so.11
+78c6b783b000-78c6c1997000 rw-p 0083b000 103:01 6570400                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcufft.so.11
+78c6c1997000-78c6c1b18000 rw-p 00000000 00:00 0 
+78c6c1c00000-78c6c81af000 r-xp 00000000 103:01 6570398                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublas.so.12
+78c6c81af000-78c6c83af000 ---p 065af000 103:01 6570398                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublas.so.12
+78c6c83af000-78c6c83b6000 r--p 065af000 103:01 6570398                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublas.so.12
+78c6c83b6000-78c6c83bd000 rw-p 065b6000 103:01 6570398                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublas.so.12
+78c6c83bd000-78c6c83c5000 rw-p 00000000 00:00 0 
+78c6c8400000-78c6c8564000 r--p 00000000 103:01 27526257                  /usr/lib/x86_64-linux-gnu/libcuda.so.595.84
+78c6c8564000-78c6c9661000 r-xp 00164000 103:01 27526257                  /usr/lib/x86_64-linux-gnu/libcuda.so.595.84
+78c6c9661000-78c6cda08000 r--p 01261000 103:01 27526257                  /usr/lib/x86_64-linux-gnu/libcuda.so.595.84
+78c6cda08000-78c6cdb40000 r--p 05607000 103:01 27526257                  /usr/lib/x86_64-linux-gnu/libcuda.so.595.84
+78c6cdb40000-78c6cdb45000 rw-p 0573f000 103:01 27526257                  /usr/lib/x86_64-linux-gnu/libcuda.so.595.84
+78c6cdb45000-78c6cdbac000 rw-p 00000000 00:00 0 
+78c6cdc00000-78c6eb7af000 r-xp 00000000 103:01 6570396                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublasLt.so.12
+78c6eb7af000-78c6eb9af000 ---p 1dbaf000 103:01 6570396                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublasLt.so.12
+78c6eb9af000-78c6ebbdd000 r--p 1dbaf000 103:01 6570396                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublasLt.so.12
+78c6ebbdd000-78c6ecc58000 rw-p 1dddd000 103:01 6570396                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcublasLt.so.12
+78c6ecc58000-78c6f042d000 rw-p 00000000 00:00 0 
+78c6f0600000-78c6f09e9000 r--p 00000000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f09e9000-78c6f1b25000 r-xp 003e9000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f1b25000-78c6f1ccf000 r--p 01525000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f1ccf000-78c6f1cd0000 ---p 016cf000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f1cd0000-78c6f1cd1000 r--p 016cf000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f1cd1000-78c6f1cd9000 rw-p 016d0000 103:01 6570391                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas.so
+78c6f1cd9000-78c6f1cda000 rw-p 00000000 00:00 0 
+78c6f1e00000-78c709e00000 rw-p 00000000 00:00 0 
+78c709fff000-78c70a800000 rw-p 00000000 00:00 0 
+78c70a800000-78c712800000 rw-p 00000000 00:00 0 
+78c7129ff000-78c713200000 rw-p 00000000 00:00 0 
+78c713200000-78c71b200000 rw-p 00000000 00:00 0 
+78c71b3ff000-78c71bc00000 rw-p 00000000 00:00 0 
+78c71bc00000-78c723c00000 rw-p 00000000 00:00 0 
+78c723dff000-78c724600000 rw-p 00000000 00:00 0 
+78c724600000-78c72c600000 rw-p 00000000 00:00 0 
+78c72c7ff000-78c72d000000 rw-p 00000000 00:00 0 
+78c72d000000-78c735000000 rw-p 00000000 00:00 0 
+78c7351ff000-78c735a00000 rw-p 00000000 00:00 0 
+78c735a00000-78c73da00000 rw-p 00000000 00:00 0 
+78c73dbff000-78c73e400000 rw-p 00000000 00:00 0 
+78c73e400000-78c746400000 rw-p 00000000 00:00 0 
+78c7465ff000-78c746e00000 rw-p 00000000 00:00 0 
+78c746e00000-78c74ee00000 rw-p 00000000 00:00 0 
+78c74efff000-78c74f800000 rw-p 00000000 00:00 0 
+78c74f800000-78c757800000 rw-p 00000000 00:00 0 
+78c7579ff000-78c758200000 rw-p 00000000 00:00 0 
+78c758200000-78c760200000 rw-p 00000000 00:00 0 
+78c7603ff000-78c760c00000 rw-p 00000000 00:00 0 
+78c760c00000-78c768c00000 rw-p 00000000 00:00 0 
+78c768dff000-78c769600000 rw-p 00000000 00:00 0 
+78c769600000-78c771600000 rw-p 00000000 00:00 0 
+78c7717ff000-78c772000000 rw-p 00000000 00:00 0 
+78c772000000-78c77a000000 rw-p 00000000 00:00 0 
+78c77a1ff000-78c77aa00000 rw-p 00000000 00:00 0 
+78c77aa00000-78c782a00000 rw-p 00000000 00:00 0 
+78c782bff000-78c783400000 rw-p 00000000 00:00 0 
+78c783400000-78c78b400000 rw-p 00000000 00:00 0 
+78c78b5ff000-78c78be00000 rw-p 00000000 00:00 0 
+78c78be00000-78c793e00000 rw-p 00000000 00:00 0 
+78c793fff000-78c794800000 rw-p 00000000 00:00 0 
+78c794800000-78c79c800000 rw-p 00000000 00:00 0 
+78c79c9ff000-78c79d200000 rw-p 00000000 00:00 0 
+78c79d200000-78c7a5200000 rw-p 00000000 00:00 0 
+78c7a53ff000-78c7a5c00000 rw-p 00000000 00:00 0 
+78c7a5c00000-78c7adc00000 rw-p 00000000 00:00 0 
+78c7addff000-78c7ae600000 rw-p 00000000 00:00 0 
+78c7ae600000-78c7b6600000 rw-p 00000000 00:00 0 
+78c7b67ff000-78c7b7000000 rw-p 00000000 00:00 0 
+78c7b7000000-78c7bf000000 rw-p 00000000 00:00 0 
+78c7bf1ff000-78c7bfa00000 rw-p 00000000 00:00 0 
+78c7bfa00000-78c7c7a00000 rw-p 00000000 00:00 0 
+78c7c7bff000-78c7c8400000 rw-p 00000000 00:00 0 
+78c7c8400000-78c7d0400000 rw-p 00000000 00:00 0 
+78c7d05ff000-78c7d0e00000 rw-p 00000000 00:00 0 
+78c7d0e00000-78c7d8e00000 rw-p 00000000 00:00 0 
+78c7d8fff000-78c7d9800000 rw-p 00000000 00:00 0 
+78c7d9800000-78c7e1800000 rw-p 00000000 00:00 0 
+78c7e19ff000-78c7e2200000 rw-p 00000000 00:00 0 
+78c7e2200000-78c7ea200000 rw-p 00000000 00:00 0 
+78c7ea3ff000-78c7eac00000 rw-p 00000000 00:00 0 
+78c7eac00000-78c7f2c00000 rw-p 00000000 00:00 0 
+78c7f2dff000-78c7f3600000 rw-p 00000000 00:00 0 
+78c7f3600000-78c7fb600000 rw-p 00000000 00:00 0 
+78c7fb7fd000-78c7fd000000 rw-p 00000000 00:00 0 
+78c7fd000000-78c7fd112000 r--p 00000000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7fd112000-78c7fd122000 r-xp 00112000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7fd122000-78c7fd128000 ---p 00122000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7fd128000-78c7fee0b000 r-xp 00128000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7fee0b000-78c7ff006000 r--p 01e0b000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7ff006000-78c7ff00c000 r--p 02005000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7ff00c000-78c7ff025000 rw-p 0200b000 103:01 6570389                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas.so.0
+78c7ff025000-78c7ff032000 rw-p 00000000 00:00 0 
+78c7ff200000-78c83f200000 rw-p 00000000 00:00 0 
+78c83f3fb000-78c841c00000 rw-p 00000000 00:00 0 
+78c841c00000-78c849c00000 rw-p 00000000 00:00 0 
+78c849dfd000-78c84b600000 rw-p 00000000 00:00 0 
+78c84b600000-78c85b600000 rw-p 00000000 00:00 0 
+78c85b7ff000-78c85c000000 rw-p 00000000 00:00 0 
+78c85c000000-78c8fc000000 rw-p 00000000 00:00 0 
+78c8fc000000-78c8fc021000 rw-p 00000000 00:00 0 
+78c8fc021000-78c900000000 ---p 00000000 00:00 0 
+78c9005f9000-78c903e00000 rw-p 00000000 00:00 0 
+78d0dbf00000-78d0dc000000 ---p 00000000 00:00 0 
+78d0dc000000-78d0dc6f4000 r--p 01a65000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78d0dc6f4000-78d0dc800000 r--p 00000000 00:00 0 
+78d0dc800000-78d0dc875000 rw-p 00000000 00:00 0 
+78d0dc875000-78d0dcb7e000 rw-p 022da000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78d0dcb7e000-78d0dd1b3000 r--p 025e3000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78d0dd1b3000-78d0dd200000 ---p 00000000 00:00 0 
+78d0dd200000-78d0df600000 rw-p 00000000 00:00 0 
+78d0df600000-78d8dbf00000 ---p 00000000 00:00 0 
+78d8dc000000-78d8e0000000 rw-p 00000000 00:00 0 
+78d8e2800000-78d8e345d000 r--p 00000000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d8e345d000-78d8e5ce5000 r-xp 00c5d000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d8e5ce5000-78d90307a000 r--p 034e5000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d90307a000-78d90307b000 ---p 2087a000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d90307b000-78d9030e0000 r--p 2087a000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d9030e0000-78d9030fb000 rw-p 208df000 103:01 6570494                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch_cuda.so
+78d9030fb000-78d903e16000 rw-p 00000000 00:00 0 
+78d904000000-78d90402c000 rw-p 00000000 00:00 0 
+78d90402c000-78d908000000 ---p 00000000 00:00 0 
+78d908400000-78d908408000 r-xp 00000000 103:01 6570475                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvToolsExt.so.1
+78d908408000-78d908608000 ---p 00008000 103:01 6570475                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvToolsExt.so.1
+78d908608000-78d908609000 r--p 00008000 103:01 6570475                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvToolsExt.so.1
+78d908609000-78d90860a000 rw-p 00009000 103:01 6570475                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libnvToolsExt.so.1
+78d9086f9000-78d90bf00000 rw-p 00000000 00:00 0 
+78e060000000-78e064000000 rw-p 00000000 00:00 0 
+78e068000000-78e06c000000 rw-p 00000000 00:00 0 
+78e06c7f1000-78e074000000 rw-p 00000000 00:00 0 
+78e074000000-78e07bfaf000 rw-p 00000000 00:00 0 
+78e07bfaf000-78e07c000000 ---p 00000000 00:00 0 
+78e07c000000-78e07c021000 rw-p 00000000 00:00 0 
+78e07c021000-78e080000000 ---p 00000000 00:00 0 
+78e080000000-78e084000000 rw-p 00000000 00:00 0 
+78e084000000-78e084870000 rw-p 00000000 00:00 0 
+78e084870000-78e088000000 ---p 00000000 00:00 0 
+78e088000000-78e088036000 rw-p 00000000 00:00 0 
+78e088036000-78e08c000000 ---p 00000000 00:00 0 
+78e08c000000-78e08c069000 rw-p 00000000 00:00 0 
+78e08c069000-78e090000000 ---p 00000000 00:00 0 
+78e090000000-78e090170000 rw-p 00000000 00:00 0 
+78e090170000-78e094000000 ---p 00000000 00:00 0 
+78e094000000-78e094021000 rw-p 00000000 00:00 0 
+78e094021000-78e098000000 ---p 00000000 00:00 0 
+78e098000000-78e0980e0000 rw-p 00000000 00:00 0 
+78e0980e0000-78e09c000000 ---p 00000000 00:00 0 
+78e09c000000-78e09c021000 rw-p 00000000 00:00 0 
+78e09c021000-78e0a0000000 ---p 00000000 00:00 0 
+78e0a0000000-78e0a0021000 rw-p 00000000 00:00 0 
+78e0a0021000-78e0a4000000 ---p 00000000 00:00 0 
+78e0a4000000-78e0a4021000 rw-p 00000000 00:00 0 
+78e0a4021000-78e0a8000000 ---p 00000000 00:00 0 
+78e0a8000000-78e0a8021000 rw-p 00000000 00:00 0 
+78e0a8021000-78e0ac000000 ---p 00000000 00:00 0 
+78e0ac000000-78e0ac021000 rw-p 00000000 00:00 0 
+78e0ac021000-78e0b0000000 ---p 00000000 00:00 0 
+78e0b0000000-78e0b0021000 rw-p 00000000 00:00 0 
+78e0b0021000-78e0b4000000 ---p 00000000 00:00 0 
+78e0b4000000-78e0b4086000 rw-p 00000000 00:00 0 
+78e0b4086000-78e0b8000000 ---p 00000000 00:00 0 
+78e0b8000000-78e0b80b6000 rw-p 00000000 00:00 0 
+78e0b80b6000-78e0bc000000 ---p 00000000 00:00 0 
+78e0bc000000-78e0bc021000 rw-p 00000000 00:00 0 
+78e0bc021000-78e0c0000000 ---p 00000000 00:00 0 
+78e0c0000000-78e0c0021000 rw-p 00000000 00:00 0 
+78e0c0021000-78e0c4000000 ---p 00000000 00:00 0 
+78e0c4000000-78e0c4021000 rw-p 00000000 00:00 0 
+78e0c4021000-78e0c8000000 ---p 00000000 00:00 0 
+78e0c8000000-78e0c8021000 rw-p 00000000 00:00 0 
+78e0c8021000-78e0cc000000 ---p 00000000 00:00 0 
+78e0cc000000-78e0cc021000 rw-p 00000000 00:00 0 
+78e0cc021000-78e0d0000000 ---p 00000000 00:00 0 
+78e0d0000000-78e0d0021000 rw-p 00000000 00:00 0 
+78e0d0021000-78e0d4000000 ---p 00000000 00:00 0 
+78e0d4000000-78e0d4021000 rw-p 00000000 00:00 0 
+78e0d4021000-78e0d8000000 ---p 00000000 00:00 0 
+78e0d8000000-78e0d8021000 rw-p 00000000 00:00 0 
+78e0d8021000-78e0dc000000 ---p 00000000 00:00 0 
+78e0dc000000-78e0dc021000 rw-p 00000000 00:00 0 
+78e0dc021000-78e0e0000000 ---p 00000000 00:00 0 
+78e0e0000000-78e0e0021000 rw-p 00000000 00:00 0 
+78e0e0021000-78e0e4000000 ---p 00000000 00:00 0 
+78e0e4000000-78e0e4021000 rw-p 00000000 00:00 0 
+78e0e4021000-78e0e8000000 ---p 00000000 00:00 0 
+78e0e8000000-78e0e8021000 rw-p 00000000 00:00 0 
+78e0e8021000-78e0ec000000 ---p 00000000 00:00 0 
+78e0ec000000-78e0ec021000 rw-p 00000000 00:00 0 
+78e0ec021000-78e0f0000000 ---p 00000000 00:00 0 
+78e0f0000000-78e0f0021000 rw-p 00000000 00:00 0 
+78e0f0021000-78e0f4000000 ---p 00000000 00:00 0 
+78e0f4000000-78e0f4021000 rw-p 00000000 00:00 0 
+78e0f4021000-78e0f8000000 ---p 00000000 00:00 0 
+78e0f8000000-78e0f8021000 rw-p 00000000 00:00 0 
+78e0f8021000-78e0fc000000 ---p 00000000 00:00 0 
+78e0fc000000-78e0fc021000 rw-p 00000000 00:00 0 
+78e0fc021000-78e100000000 ---p 00000000 00:00 0 
+78e100000000-78e100021000 rw-p 00000000 00:00 0 
+78e100021000-78e104000000 ---p 00000000 00:00 0 
+78e104000000-78e104021000 rw-p 00000000 00:00 0 
+78e104021000-78e108000000 ---p 00000000 00:00 0 
+78e108400000-78e108404000 ---p 00000000 00:00 0 
+78e108404000-78e108600000 rw-p 00000000 00:00 0 
+78e108600000-78e108604000 ---p 00000000 00:00 0 
+78e108604000-78e108800000 rw-p 00000000 00:00 0 
+78e108800000-78e108804000 ---p 00000000 00:00 0 
+78e108804000-78e108a00000 rw-p 00000000 00:00 0 
+78e108a00000-78e108a04000 ---p 00000000 00:00 0 
+78e108a04000-78e108c00000 rw-p 00000000 00:00 0 
+78e108c00000-78e108c04000 ---p 00000000 00:00 0 
+78e108c04000-78e108e00000 rw-p 00000000 00:00 0 
+78e108e00000-78e108e04000 ---p 00000000 00:00 0 
+78e108e04000-78e109000000 rw-p 00000000 00:00 0 
+78e109000000-78e109004000 ---p 00000000 00:00 0 
+78e109004000-78e109200000 rw-p 00000000 00:00 0 
+78e1092fb000-78e109800000 rw-p 00000000 00:00 0 
+78e109800000-78e109804000 ---p 00000000 00:00 0 
+78e109804000-78e109a00000 rw-p 00000000 00:00 0 
+78e109a00000-78e109a04000 ---p 00000000 00:00 0 
+78e109a04000-78e109c00000 rw-p 00000000 00:00 0 
+78e109c00000-78e109c04000 ---p 00000000 00:00 0 
+78e109c04000-78e109e00000 rw-p 00000000 00:00 0 
+78e109efb000-78e10a400000 rw-p 00000000 00:00 0 
+78e10a400000-78e10a8a8000 r--p 00000000 103:01 6570496                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libjnitorch.so
+78e10a8a8000-78e10b9b8000 r-xp 004a8000 103:01 6570496                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libjnitorch.so
+78e10b9b8000-78e10be27000 r--p 015b8000 103:01 6570496                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libjnitorch.so
+78e10be27000-78e10be61000 r--p 01a26000 103:01 6570496                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libjnitorch.so
+78e10be61000-78e10be6a000 rw-p 01a60000 103:01 6570496                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libjnitorch.so
+78e10be6a000-78e10be70000 rw-p 00000000 00:00 0 
+78e10beff000-78e10c000000 rw-p 00000000 00:00 0 
+78e10c000000-78e10c02c000 rw-p 00000000 00:00 0 
+78e10c02c000-78e110000000 ---p 00000000 00:00 0 
+78e110000000-78e110021000 rw-p 00000000 00:00 0 
+78e110021000-78e114000000 ---p 00000000 00:00 0 
+78e114000000-78e114021000 rw-p 00000000 00:00 0 
+78e114021000-78e118000000 ---p 00000000 00:00 0 
+78e118000000-78e118021000 rw-p 00000000 00:00 0 
+78e118021000-78e11c000000 ---p 00000000 00:00 0 
+78e11c000000-78e11c021000 rw-p 00000000 00:00 0 
+78e11c021000-78e120000000 ---p 00000000 00:00 0 
+78e1200fd000-78e120400000 rw-p 00000000 00:00 0 
+78e120400000-78e120422000 r-xp 00000000 103:01 6570410                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn.so.8
+78e120422000-78e120621000 ---p 00022000 103:01 6570410                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn.so.8
+78e120621000-78e120622000 r--p 00021000 103:01 6570410                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn.so.8
+78e120622000-78e120623000 rw-p 00022000 103:01 6570410                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudnn.so.8
+78e120623000-78e120624000 rw-p 00000000 00:00 0 
+78e1206f9000-78e123f00000 rw-p 00000000 00:00 0 
+78e7a0000000-78e7a0026000 rw-p 00000000 00:00 0 
+78e7a0026000-78e7a4000000 ---p 00000000 00:00 0 
+78e7a8000000-78e7a8026000 rw-p 00000000 00:00 0 
+78e7a8026000-78e7ac000000 ---p 00000000 00:00 0 
+78e7ac000000-78e7ac026000 rw-p 00000000 00:00 0 
+78e7ac026000-78e7b0000000 ---p 00000000 00:00 0 
+78e7b0000000-78e7b0026000 rw-p 00000000 00:00 0 
+78e7b0026000-78e7b4000000 ---p 00000000 00:00 0 
+78e7b4000000-78e7b4026000 rw-p 00000000 00:00 0 
+78e7b4026000-78e7b8000000 ---p 00000000 00:00 0 
+78e7b8000000-78e7b8026000 rw-p 00000000 00:00 0 
+78e7b8026000-78e7bc000000 ---p 00000000 00:00 0 
+78e7bc000000-78e7bc026000 rw-p 00000000 00:00 0 
+78e7bc026000-78e7c0000000 ---p 00000000 00:00 0 
+78e7c0000000-78e7c0026000 rw-p 00000000 00:00 0 
+78e7c0026000-78e7c4000000 ---p 00000000 00:00 0 
+78e7c4000000-78e7c4026000 rw-p 00000000 00:00 0 
+78e7c4026000-78e7c8000000 ---p 00000000 00:00 0 
+78e7c8000000-78e7c8021000 rw-p 00000000 00:00 0 
+78e7c8021000-78e7cc000000 ---p 00000000 00:00 0 
+78e7ce000000-78e7d4000000 ---p 00000000 00:00 0 
+78e7d4000000-78e7dc000000 rw-p 00000000 00:00 0 
+78e7dc000000-78e7df198000 rw-p 00000000 00:00 0 
+78e7df198000-78e7e0000000 ---p 00000000 00:00 0 
+78e7e0000000-78e7e0021000 rw-p 00000000 00:00 0 
+78e7e0021000-78e7e4000000 ---p 00000000 00:00 0 
+78e7e4000000-78e7e8000000 rw-p 00000000 00:00 0 
+78e7ec000000-78e7f0000000 rw-p 00000000 00:00 0 
+78e7f4000000-78e7f8000000 rw-p 00000000 00:00 0 
+78e7fc000000-78e800000000 rw-p 00000000 00:00 0 
+78e804000000-78e808000000 rw-p 00000000 00:00 0 
+78e80c000000-78e810000000 rw-p 00000000 00:00 0 
+78e814000000-78e818000000 rw-p 00000000 00:00 0 
+78e81c000000-78e820000000 rw-p 00000000 00:00 0 
+78e824000000-78e828000000 rw-p 00000000 00:00 0 
+78e82c000000-78e830000000 rw-p 00000000 00:00 0 
+78e834000000-78e838000000 rw-p 00000000 00:00 0 
+78e83c000000-78e840000000 rw-p 00000000 00:00 0 
+78e844000000-78e848000000 rw-p 00000000 00:00 0 
+78e84c000000-78e850000000 rw-p 00000000 00:00 0 
+78e854000000-78e858000000 rw-p 00000000 00:00 0 
+78e85c000000-78e860000000 rw-p 00000000 00:00 0 
+78e864000000-78e868000000 rw-p 00000000 00:00 0 
+78e86c000000-78e870000000 rw-p 00000000 00:00 0 
+78e874000000-78e878000000 rw-p 00000000 00:00 0 
+78e87c000000-78e880000000 rw-p 00000000 00:00 0 
+78e884000000-78e888000000 rw-p 00000000 00:00 0 
+78e88c000000-78e890000000 rw-p 00000000 00:00 0 
+78e894000000-78e898000000 rw-p 00000000 00:00 0 
+78e89c000000-78e8a0000000 rw-p 00000000 00:00 0 
+78e8a4000000-78e8a8000000 rw-p 00000000 00:00 0 
+78e8ac000000-78e8b0000000 rw-p 00000000 00:00 0 
+78e8b4000000-78e8b8000000 rw-p 00000000 00:00 0 
+78e8bc000000-78e8c0000000 rw-p 00000000 00:00 0 
+78e8c4000000-78e8c8000000 rw-p 00000000 00:00 0 
+78e8cc000000-78e8d0000000 rw-p 00000000 00:00 0 
+78e8d4000000-78e8d8000000 rw-p 00000000 00:00 0 
+78e8dc000000-78e8e0000000 rw-p 00000000 00:00 0 
+78e8e4000000-78e8e8000000 rw-p 00000000 00:00 0 
+78e8ec000000-78e8f0000000 rw-p 00000000 00:00 0 
+78e8f4000000-78e8f8000000 rw-p 00000000 00:00 0 
+78e8fc000000-78e900000000 rw-p 00000000 00:00 0 
+78e904000000-78e908026000 rw-p 00000000 00:00 0 
+78e908026000-78e90c000000 ---p 00000000 00:00 0 
+78e90c000000-78e910026000 rw-p 00000000 00:00 0 
+78e910026000-78e914000000 ---p 00000000 00:00 0 
+78e914000000-78e918026000 rw-p 00000000 00:00 0 
+78e918026000-78e91c000000 ---p 00000000 00:00 0 
+78e91c000000-78e920000000 rw-p 00000000 00:00 0 
+78e921ddd000-78e9225de000 rw-p 00000000 00:00 0 
+78e9225de000-78e9237ff000 ---p 00000000 00:00 0 
+78e9237ff000-78e924000000 rw-p 00000000 00:00 0 
+78e924000000-78e9241d4000 rw-p 00000000 00:00 0 
+78e9241d4000-78e928000000 ---p 00000000 00:00 0 
+78e9280fd000-78e928400000 rw-p 00000000 00:00 0 
+78e928400000-78e9284a6000 r-xp 00000000 103:01 6570394                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudart.so.12
+78e9284a6000-78e9286a6000 ---p 000a6000 103:01 6570394                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudart.so.12
+78e9286a6000-78e9286ab000 r--p 000a6000 103:01 6570394                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudart.so.12
+78e9286ab000-78e9286ac000 rw-p 000ab000 103:01 6570394                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/cuda/linux-x86_64/libcudart.so.12
+78e9286ac000-78e9286ae000 rw-p 00000000 00:00 0 
+78e9286fe000-78e929000000 rw-p 00000000 00:00 0 
+78e929000000-78e92bc1c000 r-xp 00000000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78e92bc1c000-78e92be1b000 ---p 02c1c000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78e92be1b000-78e92be1c000 r--p 02c1b000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78e92be1c000-78e92be1f000 rw-p 02c1c000 103:01 6590624                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjvmcicompiler.so
+78e92beff000-78e92c000000 rw-p 00000000 00:00 0 
+78e92c000000-78e92c0dc000 rw-p 00000000 00:00 0 
+78e92c0dc000-78e930000000 ---p 00000000 00:00 0 
+78e930000000-78e930580000 rw-p 00000000 00:00 0 
+78e930580000-78e934000000 ---p 00000000 00:00 0 
+78e934000000-78e934021000 rw-p 00000000 00:00 0 
+78e934021000-78e938000000 ---p 00000000 00:00 0 
+78e938000000-78e938021000 rw-p 00000000 00:00 0 
+78e938021000-78e93c000000 ---p 00000000 00:00 0 
+78e93c000000-78e93c5ba000 rw-p 00000000 00:00 0 
+78e93c5ba000-78e940000000 ---p 00000000 00:00 0 
+78e940000000-78e940320000 rw-p 00000000 00:00 0 
+78e940320000-78e944000000 ---p 00000000 00:00 0 
+78e944000000-78e944021000 rw-p 00000000 00:00 0 
+78e944021000-78e948000000 ---p 00000000 00:00 0 
+78e948000000-78e948021000 rw-p 00000000 00:00 0 
+78e948021000-78e94c000000 ---p 00000000 00:00 0 
+78e94c000000-78e94c021000 rw-p 00000000 00:00 0 
+78e94c021000-78e950000000 ---p 00000000 00:00 0 
+78e950000000-78e950021000 rw-p 00000000 00:00 0 
+78e950021000-78e954000000 ---p 00000000 00:00 0 
+78e954000000-78e954021000 rw-p 00000000 00:00 0 
+78e954021000-78e958000000 ---p 00000000 00:00 0 
+78e9580fd000-78e958400000 rw-p 00000000 00:00 0 
+78e958400000-78e958512000 r--p 00000000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e958512000-78e958522000 r-xp 00112000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e958522000-78e958528000 ---p 00122000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e958528000-78e95a20b000 r-xp 00128000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e95a20b000-78e95a406000 r--p 01e0b000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e95a406000-78e95a40c000 r--p 02005000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e95a40c000-78e95a425000 rw-p 0200b000 103:01 6570386                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libopenblas_nolapack.so.0
+78e95a425000-78e95a432000 rw-p 00000000 00:00 0 
+78e95a4ff000-78e95a600000 rw-p 00000000 00:00 0 
+78e95a600000-78e95a61d000 r--p 00000000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a61d000-78e95a8ae000 r-xp 0001d000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a8ae000-78e95a8e2000 r--p 002ae000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a8e2000-78e95a8e3000 ---p 002e2000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a8e3000-78e95a8e4000 r--p 002e2000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a8e4000-78e95a8e6000 rw-p 002e3000 103:01 6570384                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgfortran.so.5
+78e95a8ff000-78e95aa00000 rw-p 00000000 00:00 0 
+78e95aa00000-78e95aaa3000 r--p 00000000 103:01 27559929                  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35
+78e95aaa3000-78e95abfe000 r-xp 000a3000 103:01 27559929                  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35
+78e95abfe000-78e95ac8a000 r--p 001fe000 103:01 27559929                  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35
+78e95ac8a000-78e95ac99000 r--p 0028a000 103:01 27559929                  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35
+78e95ac99000-78e95ac9c000 rw-p 00299000 103:01 27559929                  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.35
+78e95ac9c000-78e95aca0000 rw-p 00000000 00:00 0 
+78e95acbe000-78e95accf000 r--p 00000000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95accf000-78e95ad23000 r-xp 00011000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95ad23000-78e95ad37000 r--p 00065000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95ad37000-78e95ad38000 ---p 00079000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95ad38000-78e95ad39000 r--p 00079000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95ad39000-78e95ad3a000 rw-p 0007a000 103:01 6570492                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10_cuda.so
+78e95ad3a000-78e95ad3f000 rw-p 00000000 00:00 0 
+78e95ad3f000-78e95ad5c000 r--p 00000000 103:01 6570490                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10.so
+78e95ad5c000-78e95add2000 r-xp 0001d000 103:01 6570490                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10.so
+78e95add2000-78e95adf6000 r--p 00093000 103:01 6570490                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10.so
+78e95adf6000-78e95adf8000 r--p 000b6000 103:01 6570490                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10.so
+78e95adf8000-78e95adfe000 rw-p 000b8000 103:01 6570490                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libc10.so
+78e95adfe000-78e95ae00000 rw-p 00000000 00:00 0 
+78e95ae00000-78e95ae04000 ---p 00000000 00:00 0 
+78e95ae04000-78e95b000000 rw-p 00000000 00:00 0 
+78e95b000000-78e95b370000 rw-p 00000000 00:00 0 
+78e95b370000-78e95b400000 ---p 00000000 00:00 0 
+78e95b400000-78e95b880000 rw-p 00000000 00:00 0 
+78e95b880000-78e95c5c0000 rw-p 00000000 00:00 0 
+78e95c5c0000-78e95f000000 ---p 00000000 00:00 0 
+78e95f000000-78e95fbdc000 rw-p 00001000 103:01 6590653                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/classes.jsa
+78e95fbdc000-78e960000000 ---p 00000000 00:00 0 
+78e960000000-78e960040000 rw-p 00000000 00:00 0 
+78e960040000-78e960080000 rw-p 00000000 00:00 0 
+78e960080000-78e9602a0000 rw-p 00000000 00:00 0 
+78e9602a0000-78e9a0000000 ---p 00000000 00:00 0 
+78e9a0000000-78e9a0021000 rw-p 00000000 00:00 0 
+78e9a0021000-78e9a4000000 ---p 00000000 00:00 0 
+78e9a4000000-78e9a4028000 rw-p 00000000 00:00 0 
+78e9a4028000-78e9a8000000 ---p 00000000 00:00 0 
+78e9a8000000-78e9a8021000 rw-p 00000000 00:00 0 
+78e9a8021000-78e9ac000000 ---p 00000000 00:00 0 
+78e9ac00b000-78e9ac0ef000 r-xp 00000000 103:01 6570470                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libiomp5.so
+78e9ac0ef000-78e9ac0f0000 ---p 000e4000 103:01 6570470                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libiomp5.so
+78e9ac0f0000-78e9ac0f1000 r--p 000e4000 103:01 6570470                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libiomp5.so
+78e9ac0f1000-78e9ac0f7000 rw-p 000e5000 103:01 6570470                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libiomp5.so
+78e9ac0f7000-78e9ac100000 rw-p 00000000 00:00 0 
+78e9ac100000-78e9ac104000 ---p 00000000 00:00 0 
+78e9ac104000-78e9ac200000 rw-p 00000000 00:00 0 
+78e9ac200000-78e9ac204000 ---p 00000000 00:00 0 
+78e9ac204000-78e9ac400000 rw-p 00000000 00:00 0 
+78e9ac400000-78e9ac404000 ---p 00000000 00:00 0 
+78e9ac404000-78e9ac600000 rw-p 00000000 00:00 0 
+78e9ac629000-78e9ac638000 r--p 00000000 103:01 6570471                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtbb.so.2
+78e9ac638000-78e9ac65a000 r-xp 0000f000 103:01 6570471                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtbb.so.2
+78e9ac65a000-78e9ac668000 r--p 00031000 103:01 6570471                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtbb.so.2
+78e9ac668000-78e9ac66a000 r--p 0003e000 103:01 6570471                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtbb.so.2
+78e9ac66a000-78e9ac66d000 rw-p 00040000 103:01 6570471                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtbb.so.2
+78e9ac66d000-78e9ac66f000 rw-p 00000000 00:00 0 
+78e9ac66f000-78e9ac678000 r--p 00000000 103:01 6570447                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libgomp.so.1
+78e9ac678000-78e9ac6a3000 r-xp 00009000 103:01 6570447                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libgomp.so.1
+78e9ac6a3000-78e9ac6af000 r--p 00034000 103:01 6570447                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libgomp.so.1
+78e9ac6af000-78e9ac6b0000 r--p 0003f000 103:01 6570447                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libgomp.so.1
+78e9ac6b0000-78e9ac6b1000 rw-p 00040000 103:01 6570447                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libgomp.so.1
+78e9ac6b1000-78e9ac6c3000 r--p 00000000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6c3000-78e9ac6f0000 r-xp 00012000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6f0000-78e9ac6fc000 r--p 0003f000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6fc000-78e9ac6fd000 ---p 0004b000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6fd000-78e9ac6fe000 r--p 0004b000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6fe000-78e9ac6ff000 rw-p 0004c000 103:01 6570388                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libjniopenblas_nolapack.so
+78e9ac6ff000-78e9ac800000 rw-p 00000000 00:00 0 
+78e9ac800000-78e9ac804000 ---p 00000000 00:00 0 
+78e9ac804000-78e9ac900000 rw-p 00000000 00:00 0 
+78e9ac900000-78e9ac904000 ---p 00000000 00:00 0 
+78e9ac904000-78e9aca00000 rw-p 00000000 00:00 0 
+78e9aca00000-78e9aca04000 ---p 00000000 00:00 0 
+78e9aca04000-78e9acc00000 rw-p 00000000 00:00 0 
+78e9acc00000-78e9acc04000 ---p 00000000 00:00 0 
+78e9acc04000-78e9ace00000 rw-p 00000000 00:00 0 
+78e9ace00000-78e9ace04000 ---p 00000000 00:00 0 
+78e9ace04000-78e9ad000000 rw-p 00000000 00:00 0 
+78e9ad000000-78e9ad004000 ---p 00000000 00:00 0 
+78e9ad004000-78e9ad100000 rw-p 00000000 00:00 0 
+78e9ad100000-78e9ad104000 ---p 00000000 00:00 0 
+78e9ad104000-78e9ad200000 rw-p 00000000 00:00 0 
+78e9ad200000-78e9ad204000 ---p 00000000 00:00 0 
+78e9ad204000-78e9ad400000 rw-p 00000000 00:00 0 
+78e9ad400000-78e9ad404000 ---p 00000000 00:00 0 
+78e9ad404000-78e9ad600000 rw-p 00000000 00:00 0 
+78e9ad600000-78e9ad604000 ---p 00000000 00:00 0 
+78e9ad604000-78e9ad700000 rw-p 00000000 00:00 0 
+78e9ad700000-78e9ad704000 ---p 00000000 00:00 0 
+78e9ad704000-78e9ad800000 rw-p 00000000 00:00 0 
+78e9ad800000-78e9add77000 r--p 00000000 103:01 27525259                  /usr/lib/locale/locale-archive
+78e9addb6000-78e9addb9000 r--p 00000000 103:01 6570382                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libquadmath.so.0
+78e9addb9000-78e9adde6000 r-xp 00003000 103:01 6570382                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libquadmath.so.0
+78e9adde6000-78e9addfe000 r--p 00030000 103:01 6570382                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libquadmath.so.0
+78e9addfe000-78e9addff000 r--p 00047000 103:01 6570382                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libquadmath.so.0
+78e9addff000-78e9ade00000 rw-p 00048000 103:01 6570382                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libquadmath.so.0
+78e9ade00000-78e9ade04000 ---p 00000000 00:00 0 
+78e9ade04000-78e9adf00000 rw-p 00000000 00:00 0 
+78e9adf00000-78e9adf04000 ---p 00000000 00:00 0 
+78e9adf04000-78e9ae000000 rw-p 00000000 00:00 0 
+78e9ae000000-78e9b0021000 rw-p 00000000 00:00 0 
+78e9b0021000-78e9b4000000 ---p 00000000 00:00 0 
+78e9b4000000-78e9b4021000 rw-p 00000000 00:00 0 
+78e9b4021000-78e9b8000000 ---p 00000000 00:00 0 
+78e9b8000000-78e9b8021000 rw-p 00000000 00:00 0 
+78e9b8021000-78e9bc000000 ---p 00000000 00:00 0 
+78e9bc020000-78e9bc030000 -w-s 00000000 00:07 1410                       /dev/nvidia0
+78e9bc030000-78e9bc034000 ---p 00000000 00:00 0 
+78e9bc034000-78e9bc231000 rw-p 00000000 00:00 0 
+78e9bc231000-78e9bc2ff000 r-xp 00000000 103:01 6590623                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjsvml.so
+78e9bc2ff000-78e9bc300000 r--p 000cd000 103:01 6590623                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjsvml.so
+78e9bc300000-78e9bc301000 rw-p 000ce000 103:01 6590623                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjsvml.so
+78e9bc301000-78e9bc3dd000 rw-p 00000000 00:00 0 
+78e9bc3dd000-78e9bc5df000 rw-p 00000000 00:00 0 
+78e9bc5df000-78e9bdcf6000 rw-p 00000000 00:00 0 
+78e9bdcf6000-78e9bdff9000 rw-p 00000000 00:00 0 
+78e9bdff9000-78e9bfde9000 rw-p 00000000 00:00 0 
+78e9bfde9000-78e9bfee9000 ---p 00000000 00:00 0 
+78e9bfee9000-78e9bff29000 rw-p 00000000 00:00 0 
+78e9bff29000-78e9bff69000 ---p 00000000 00:00 0 
+78e9bff69000-78e9bffa9000 rw-p 00000000 00:00 0 
+78e9bffa9000-78e9dc029000 ---p 00000000 00:00 0 
+78e9dc029000-78e9ddd69000 rw-p 00000000 00:00 0 
+78e9ddd69000-78e9dde69000 ---p 00000000 00:00 0 
+78e9dde69000-78e9ddea9000 rw-p 00000000 00:00 0 
+78e9ddea9000-78e9ddee9000 ---p 00000000 00:00 0 
+78e9ddee9000-78e9ddf29000 rw-p 00000000 00:00 0 
+78e9ddf29000-78e9f9fa9000 ---p 00000000 00:00 0 
+78e9f9fa9000-78e9fa3c1000 rw-p 00000000 00:00 0 
+78e9fa3c1000-78e9fa3e1000 ---p 00000000 00:00 0 
+78e9fa3e1000-78e9fa3e9000 rw-p 00000000 00:00 0 
+78e9fa3e9000-78e9fa3f1000 ---p 00000000 00:00 0 
+78e9fa3f1000-78e9fa3f9000 rw-p 00000000 00:00 0 
+78e9fa3f9000-78e9fdc09000 ---p 00000000 00:00 0 
+78e9fdc09000-78e9fdfb1000 rw-p 00000000 00:00 0 
+78e9fdfb1000-78e9fdfd1000 ---p 00000000 00:00 0 
+78e9fdfd1000-78e9fdfd9000 rw-p 00000000 00:00 0 
+78e9fdfd9000-78e9fdfe1000 ---p 00000000 00:00 0 
+78e9fdfe1000-78e9fdfe9000 rw-p 00000000 00:00 0 
+78e9fdfe9000-78ea017f9000 ---p 00000000 00:00 0 
+78ea017f9000-78ea01ba1000 rw-p 00000000 00:00 0 
+78ea01ba1000-78ea01bc1000 ---p 00000000 00:00 0 
+78ea01bc1000-78ea01bc9000 rw-p 00000000 00:00 0 
+78ea01bc9000-78ea01bd1000 ---p 00000000 00:00 0 
+78ea01bd1000-78ea01bd9000 rw-p 00000000 00:00 0 
+78ea01bd9000-78ea053e9000 ---p 00000000 00:00 0 
+78ea053e9000-78ea06c00000 rw-p 00000000 00:00 0 
+78ea06c00000-78ea071f0000 rwxp 00000000 00:00 0 
+78ea071f0000-78ea0de76000 ---p 00000000 00:00 0 
+78ea0de76000-78ea0e5c6000 rwxp 00000000 00:00 0 
+78ea0e5c6000-78ea0e98a000 ---p 00000000 00:00 0 
+78ea0e98a000-78ea0ec7a000 rwxp 00000000 00:00 0 
+78ea0ec7a000-78ea15c00000 ---p 00000000 00:00 0 
+78ea15c00000-78ea1ff4e000 r--s 00000000 103:01 6590643                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/modules
+78ea1ff4e000-78ea1ff55000 r--s 00000000 103:01 27673036                  /usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache
+78ea1ff55000-78ea1ff56000 r--p 00000000 103:01 6570495                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch.so
+78ea1ff56000-78ea1ff57000 r-xp 00001000 103:01 6570495                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch.so
+78ea1ff57000-78ea1ff58000 r--p 00002000 103:01 6570495                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch.so
+78ea1ff58000-78ea1ff59000 r--p 00002000 103:01 6570495                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch.so
+78ea1ff59000-78ea1ff5a000 rw-p 00003000 103:01 6570495                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/pytorch/linux-x86_64-gpu/libtorch.so
+78ea1ff5a000-78ea1ff5e000 r--p 00000000 103:01 27559460                  /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+78ea1ff5e000-78ea1ff82000 r-xp 00004000 103:01 27559460                  /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+78ea1ff82000-78ea1ff86000 r--p 00028000 103:01 27559460                  /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+78ea1ff86000-78ea1ff87000 r--p 0002c000 103:01 27559460                  /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+78ea1ff87000-78ea1ff88000 rw-p 0002d000 103:01 27559460                  /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+78ea1ff88000-78ea1ffc9000 rw-p 00000000 00:00 0 
+78ea1ffcd000-78ea1ffd0000 r--p 00000000 103:01 6570380                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgcc_s.so.1
+78ea1ffd0000-78ea1ffe2000 r-xp 00003000 103:01 6570380                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgcc_s.so.1
+78ea1ffe2000-78ea1ffe6000 r--p 00015000 103:01 6570380                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgcc_s.so.1
+78ea1ffe6000-78ea1ffe7000 r--p 00018000 103:01 6570380                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgcc_s.so.1
+78ea1ffe7000-78ea1ffe8000 rw-p 00019000 103:01 6570380                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/openblas/linux-x86_64/libgcc_s.so.1
+78ea1ffe8000-78ea1fffd000 r-xp 00000000 103:01 6590632                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnet.so
+78ea1fffd000-78ea1fffe000 ---p 00015000 103:01 6590632                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnet.so
+78ea1fffe000-78ea1ffff000 r--p 00015000 103:01 6590632                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnet.so
+78ea1ffff000-78ea20000000 rw-p 00016000 103:01 6590632                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnet.so
+78ea20000000-78ea24000000 rw-p 00000000 00:00 0 
+78ea24001000-78ea24002000 r--p 00000000 103:01 27540624                  /usr/lib/x86_64-linux-gnu/libutil.so.1
+78ea24002000-78ea24003000 r-xp 00001000 103:01 27540624                  /usr/lib/x86_64-linux-gnu/libutil.so.1
+78ea24003000-78ea24004000 r--p 00002000 103:01 27540624                  /usr/lib/x86_64-linux-gnu/libutil.so.1
+78ea24004000-78ea24005000 r--p 00002000 103:01 27540624                  /usr/lib/x86_64-linux-gnu/libutil.so.1
+78ea24005000-78ea24006000 rw-p 00003000 103:01 27540624                  /usr/lib/x86_64-linux-gnu/libutil.so.1
+78ea24006000-78ea2400a000 r--p 00000000 103:01 6570377                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/javacpp/linux-x86_64/libjnijavacpp.so
+78ea2400a000-78ea24011000 r-xp 00004000 103:01 6570377                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/javacpp/linux-x86_64/libjnijavacpp.so
+78ea24011000-78ea24015000 r--p 0000b000 103:01 6570377                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/javacpp/linux-x86_64/libjnijavacpp.so
+78ea24015000-78ea24016000 r--p 0000e000 103:01 6570377                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/javacpp/linux-x86_64/libjnijavacpp.so
+78ea24016000-78ea24017000 rw-p 0000f000 103:01 6570377                   /home/wolf/.javacpp/cache/storch-core-assembly.jar/org/bytedeco/javacpp/linux-x86_64/libjnijavacpp.so
+78ea24017000-78ea2402a000 r-xp 00000000 103:01 6590633                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnio.so
+78ea2402a000-78ea2402b000 r--p 00012000 103:01 6590633                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnio.so
+78ea2402b000-78ea2402c000 rw-p 00013000 103:01 6590633                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libnio.so
+78ea2402c000-78ea24033000 r-xp 00000000 103:01 6590642                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libzip.so
+78ea24033000-78ea24034000 ---p 00007000 103:01 6590642                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libzip.so
+78ea24034000-78ea24035000 r--p 00007000 103:01 6590642                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libzip.so
+78ea24035000-78ea24036000 rw-p 00008000 103:01 6590642                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libzip.so
+78ea24036000-78ea2403c000 rw-p 00000000 00:00 0 
+78ea2403c000-78ea2411b000 ---p 00000000 00:00 0 
+78ea2411b000-78ea24127000 rw-p 00000000 00:00 0 
+78ea24127000-78ea24200000 ---p 00000000 00:00 0 
+78ea24200000-78ea2532d000 r-xp 00000000 103:01 6590655                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/libjvm.so
+78ea2532d000-78ea253e3000 r--p 0112c000 103:01 6590655                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/libjvm.so
+78ea253e3000-78ea25417000 rw-p 011e2000 103:01 6590655                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/server/libjvm.so
+78ea25417000-78ea25470000 rw-p 00000000 00:00 0 
+78ea25471000-78ea254f8000 rw-p 00000000 00:00 0 
+78ea254f8000-78ea25500000 ---p 00000000 00:00 0 
+78ea25500000-78ea25504000 ---p 00000000 00:00 0 
+78ea25504000-78ea25600000 rw-p 00000000 00:00 0 
+78ea25600000-78ea25628000 r--p 00000000 103:01 27528099                  /usr/lib/x86_64-linux-gnu/libc.so.6
+78ea25628000-78ea257c0000 r-xp 00028000 103:01 27528099                  /usr/lib/x86_64-linux-gnu/libc.so.6
+78ea257c0000-78ea2580e000 r--p 001c0000 103:01 27528099                  /usr/lib/x86_64-linux-gnu/libc.so.6
+78ea2580e000-78ea25812000 r--p 0020e000 103:01 27528099                  /usr/lib/x86_64-linux-gnu/libc.so.6
+78ea25812000-78ea25814000 rw-p 00212000 103:01 27528099                  /usr/lib/x86_64-linux-gnu/libc.so.6
+78ea25814000-78ea25821000 rw-p 00000000 00:00 0 
+78ea25822000-78ea25824000 r-xp 00000000 103:01 6590608                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libextnet.so
+78ea25824000-78ea25825000 r--p 00001000 103:01 6590608                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libextnet.so
+78ea25825000-78ea25826000 rw-p 00002000 103:01 6590608                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libextnet.so
+78ea25826000-78ea2584a000 r-xp 00000000 103:01 6590615                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjava.so
+78ea2584a000-78ea2584b000 ---p 00024000 103:01 6590615                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjava.so
+78ea2584b000-78ea2584c000 r--p 00024000 103:01 6590615                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjava.so
+78ea2584c000-78ea2584d000 rw-p 00025000 103:01 6590615                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjava.so
+78ea2584d000-78ea2584e000 rw-p 00000000 00:00 0 
+78ea2584e000-78ea25869000 r-xp 00000000 103:01 6590619                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjimage.so
+78ea25869000-78ea2586a000 ---p 0001b000 103:01 6590619                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjimage.so
+78ea2586a000-78ea2586c000 r--p 0001b000 103:01 6590619                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjimage.so
+78ea2586c000-78ea2586d000 rw-p 0001d000 103:01 6590619                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjimage.so
+78ea2586d000-78ea2587f000 r--p 00000000 103:01 27538043                  /usr/lib/x86_64-linux-gnu/libm.so.6
+78ea2587f000-78ea2591f000 r-xp 00012000 103:01 27538043                  /usr/lib/x86_64-linux-gnu/libm.so.6
+78ea2591f000-78ea25991000 r--p 000b2000 103:01 27538043                  /usr/lib/x86_64-linux-gnu/libm.so.6
+78ea25991000-78ea25992000 r--p 00123000 103:01 27538043                  /usr/lib/x86_64-linux-gnu/libm.so.6
+78ea25992000-78ea25993000 rw-p 00124000 103:01 27538043                  /usr/lib/x86_64-linux-gnu/libm.so.6
+78ea25993000-78ea25994000 r--p 00000000 103:01 27540622                  /usr/lib/x86_64-linux-gnu/librt.so.1
+78ea25994000-78ea25995000 r-xp 00001000 103:01 27540622                  /usr/lib/x86_64-linux-gnu/librt.so.1
+78ea25995000-78ea25996000 r--p 00002000 103:01 27540622                  /usr/lib/x86_64-linux-gnu/librt.so.1
+78ea25996000-78ea25997000 r--p 00002000 103:01 27540622                  /usr/lib/x86_64-linux-gnu/librt.so.1
+78ea25997000-78ea25998000 rw-p 00003000 103:01 27540622                  /usr/lib/x86_64-linux-gnu/librt.so.1
+78ea25998000-78ea2599c000 rw-p 00000000 00:00 0 
+78ea2599c000-78ea2599d000 r--p 00000000 103:01 27538042                  /usr/lib/x86_64-linux-gnu/libdl.so.2
+78ea2599d000-78ea2599e000 r-xp 00001000 103:01 27538042                  /usr/lib/x86_64-linux-gnu/libdl.so.2
+78ea2599e000-78ea2599f000 r--p 00002000 103:01 27538042                  /usr/lib/x86_64-linux-gnu/libdl.so.2
+78ea2599f000-78ea259a0000 r--p 00002000 103:01 27538042                  /usr/lib/x86_64-linux-gnu/libdl.so.2
+78ea259a0000-78ea259a1000 rw-p 00003000 103:01 27538042                  /usr/lib/x86_64-linux-gnu/libdl.so.2
+78ea259a1000-78ea259a2000 r--p 00000000 103:01 27540620                  /usr/lib/x86_64-linux-gnu/libpthread.so.0
+78ea259a2000-78ea259a3000 r-xp 00001000 103:01 27540620                  /usr/lib/x86_64-linux-gnu/libpthread.so.0
+78ea259a3000-78ea259a4000 r--p 00002000 103:01 27540620                  /usr/lib/x86_64-linux-gnu/libpthread.so.0
+78ea259a4000-78ea259a5000 r--p 00002000 103:01 27540620                  /usr/lib/x86_64-linux-gnu/libpthread.so.0
+78ea259a5000-78ea259a6000 rw-p 00003000 103:01 27540620                  /usr/lib/x86_64-linux-gnu/libpthread.so.0
+78ea259a6000-78ea259b4000 r-xp 00000000 103:01 6590620                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjli.so
+78ea259b4000-78ea259b5000 ---p 0000e000 103:01 6590620                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjli.so
+78ea259b5000-78ea259b6000 r--p 0000e000 103:01 6590620                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjli.so
+78ea259b6000-78ea259b7000 rw-p 0000f000 103:01 6590620                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libjli.so
+78ea259b7000-78ea259ba000 r--p 00000000 103:01 27526803                  /usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+78ea259ba000-78ea259cd000 r-xp 00003000 103:01 27526803                  /usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+78ea259cd000-78ea259d3000 r--p 00016000 103:01 27526803                  /usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+78ea259d3000-78ea259d4000 r--p 0001c000 103:01 27526803                  /usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+78ea259d4000-78ea259d5000 rw-p 0001d000 103:01 27526803                  /usr/lib/x86_64-linux-gnu/libz.so.1.3.1
+78ea259d7000-78ea259d8000 r--s 00000000 00:07 1409                       /dev/nvidiactl
+78ea259d8000-78ea259e0000 rw-s 00000000 00:2e 90007                      /tmp/hsperfdata_wolf/3599573
+78ea259e0000-78ea259ea000 r-xp 00000000 103:01 6590610                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libinstrument.so
+78ea259ea000-78ea259eb000 r--p 00009000 103:01 6590610                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libinstrument.so
+78ea259eb000-78ea259ec000 rw-p 0000a000 103:01 6590610                   /home/wolf/.jdks/graalvm-jdk-17.0.12/lib/libinstrument.so
+78ea259ec000-78ea259ed000 ---p 00000000 00:00 0 
+78ea259ed000-78ea259ee000 r--p 00000000 00:00 0 
+78ea259ee000-78ea259ef000 ---p 00000000 00:00 0 
+78ea259ef000-78ea259f1000 rw-p 00000000 00:00 0 
+78ea259f1000-78ea259f5000 r--p 00000000 00:00 0                          [vvar]
+78ea259f5000-78ea259f7000 r--p 00000000 00:00 0                          [vvar_vclock]
+78ea259f7000-78ea259f9000 r-xp 00000000 00:00 0                          [vdso]
+78ea259f9000-78ea259fa000 r--p 00000000 103:01 27525774                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+78ea259fa000-78ea25a29000 r-xp 00001000 103:01 27525774                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+78ea25a29000-78ea25a34000 r--p 00030000 103:01 27525774                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+78ea25a34000-78ea25a36000 r--p 0003b000 103:01 27525774                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+78ea25a36000-78ea25a37000 rw-p 0003d000 103:01 27525774                  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+78ea25a37000-78ea25a38000 rw-p 00000000 00:00 0 
+7ffdf5c13000-7ffdf5c35000 rw-p 00000000 00:00 0                          [stack]
+ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
+
+
+VM Arguments:
+jvm_args: -XX:ThreadPriorityPolicy=1 -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCIProduct -XX:-UnlockExperimentalVMOptions -javaagent:/snap/intellij-idea/128/lib/idea_rt.jar=45229 -Dfile.encoding=UTF-8 
+java_command: nn.FCATrainer
+java_class_path (initial): /run/media/wolf/KIOXIA/NeuralFCA/out/production/NeuralFCA:/home/wolf/.m2/repository/org/scala-lang/scala3-library_3/3.7.4/scala3-library_3-3.7.4.jar:/home/wolf/.m2/repository/org/scala-lang/scala-library/2.13.16/scala-library-2.13.16.jar:/home/wolf/.m2/repository/org/scala-lang/modules/scala-parallel-collections_3/1.2.0/scala-parallel-collections_3-1.2.0.jar:/home/wolf/.m2/repository/org/typelevel/spire_3/0.18.0/spire_3-0.18.0.jar:/run/media/wolf/KIOXIA/NeuralFCA/lib/storch-core-assembly.jar:/home/wolf/.m2/repository/org/typelevel/spire-macros_3/0.18.0/spire-macros_3-0.18.0.jar:/home/wolf/.m2/repository/org/typelevel/spire-platform_3/0.18.0/spire-platform_3-0.18.0.jar:/home/wolf/.m2/repository/org/typelevel/spire-util_3/0.18.0/spire-util_3-0.18.0.jar:/home/wolf/.m2/repository/org/typelevel/algebra_3/2.8.0/algebra_3-2.8.0.jar:/home/wolf/.m2/repository/org/typelevel/cats-kernel_3/2.8.0/cats-kernel_3-2.8.0.jar:/home/wolf/.m2/repository/org/typelevel/shapeless3-typeable_3/3.3.0/shapeless3-typeable_3-3.3.0.jar:/home/wolf/.m2/repository/com/lihaoyi/os-lib_3/0.9.1/os-lib_3-0.9.1.jar:/home/wolf/.m2/repository/com/lihaoyi/geny_3/1.0.0/geny_3-1.0.0.jar:/home/wolf/.m2/repository/com/lihaoyi/sourcecode_3/0.3.0/sourcecode_3-0.3.0.jar:/home/wolf/.m2/repository/dev/dirs/directories/26/directories-26.jar:/home/wolf/.m2/repository/org/bytedeco/pytorch/2.1.2-1.5.10/pytorch-2.1.2-1.5.10.jar:/home/wolf/.m2/repository/org/bytedeco/javacpp/1.5.10/javacpp-1.5.10.jar:/home/wolf/.m2/repository/org/bytedeco/openblas/0.3.26-1.5.10/openblas-0.3.26-1.5.10.jar:/home/wolf/.m2/repository/org/bytedeco/pytorch/2.1.2-1.5.10/pytorch-2.1.2-1.5.10-linux-x86_64-gpu.jar:/home/wolf/.m2/repository/org/bytedeco/openblas/0.3.26-1.5.10/openblas-0.3.26-1.5.10-linux-x86_64.jar:/home/wolf/.m2/repository/org/bytedeco/javacpp/1.5.10/javacpp-1.5.10-linux-x86_64.jar:/home/wolf/.m2/repository/org/bytedeco/cuda/12.3-8.9-1.5.10/cuda-12.3-8.9-1.5.10.jar:/home/wolf/.m2/repository/org/bytedeco/
+Launcher Type: SUN_STANDARD
+
+[Global flags]
+     intx CICompilerCount                          = 15                                        {product} {ergonomic}
+     uint ConcGCThreads                            = 6                                         {product} {ergonomic}
+     bool EnableJVMCIProduct                       = true                                {JVMCI product} {jimage}
+     uint G1ConcRefinementThreads                  = 23                                        {product} {ergonomic}
+   size_t G1HeapRegionSize                         = 16777216                                  {product} {ergonomic}
+    uintx GCDrainStackTargetSize                   = 64                                        {product} {ergonomic}
+   size_t InitialHeapSize                          = 2046820352                                {product} {ergonomic}
+   size_t MarkStackSize                            = 4194304                                   {product} {ergonomic}
+   size_t MaxHeapSize                              = 32178700288                               {product} {ergonomic}
+   size_t MaxNewSize                               = 19293798400                               {product} {ergonomic}
+   size_t MinHeapDeltaBytes                        = 16777216                                  {product} {ergonomic}
+   size_t MinHeapSize                              = 16777216                                  {product} {ergonomic}
+    uintx NonNMethodCodeHeapSize                   = 11613124                               {pd product} {ergonomic}
+    uintx NonProfiledCodeHeapSize                  = 120022558                              {pd product} {ergonomic}
+    uintx ProfiledCodeHeapSize                     = 120022558                              {pd product} {ergonomic}
+    uintx ReservedCodeCacheSize                    = 251658240                              {pd product} {ergonomic}
+     bool SegmentedCodeCache                       = true                                      {product} {ergonomic}
+   size_t SoftMaxHeapSize                          = 32178700288                            {manageable} {ergonomic}
+     intx ThreadPriorityPolicy                     = 1                                         {product} {jimage}
+     bool UseCompressedClassPointers               = true                           {product lp64_product} {ergonomic}
+     bool UseCompressedOops                        = true                           {product lp64_product} {ergonomic}
+     bool UseG1GC                                  = true                                      {product} {ergonomic}
+
+Logging:
+Log output configuration:
+ #0: stdout all=warning uptime,level,tags
+ #1: stderr all=off uptime,level,tags
+
+Environment Variables:
+PATH=/home/wolf/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin
+USERNAME=wolf
+SHELL=/bin/bash
+DISPLAY=:0
+LANG=en_US.UTF-8
+
+Signal Handlers:
+   SIGSEGV: crash_handler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+    SIGBUS: crash_handler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+    SIGFPE: crash_handler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGPIPE: javaSignalHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGXFSZ: javaSignalHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+    SIGILL: crash_handler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGUSR2: SR_handler in libjvm.so, mask=00000000000000000000000000000000, flags=SA_RESTART|SA_SIGINFO
+    SIGHUP: UserHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+    SIGINT: UserHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGTERM: UserHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGQUIT: UserHandler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+   SIGTRAP: crash_handler in libjvm.so, mask=11100100010111111101111111111110, flags=SA_RESTART|SA_SIGINFO
+
+
+---------------  S Y S T E M  ---------------
+
+OS:
+DISTRIB_ID=Ubuntu
+DISTRIB_RELEASE=26.04
+DISTRIB_CODENAME=resolute
+DISTRIB_DESCRIPTION="Ubuntu 26.04 LTS"
+uname: Linux 7.0.0-29-generic #29-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 17 20:52:35 UTC 2026 x86_64
+OS uptime: 22 days 5:46 hours
+libc: glibc 2.43 NPTL 2.43 
+rlimit (soft/hard): STACK 8192k/infinity , CORE 0k/infinity , NPROC 426714/426714 , NOFILE 524288/524288 , AS infinity/infinity , CPU infinity/infinity , DATA infinity/infinity , FSIZE infinity/infinity , MEMLOCK 8192k/8192k
+load average: 3.27 4.15 5.08
+
+/proc/meminfo:
+MemTotal:       127355964 kB
+MemFree:         1255572 kB
+MemAvailable:   100335884 kB
+Buffers:          612976 kB
+Cached:         96885516 kB
+SwapCached:         3308 kB
+Active:         16968280 kB
+Inactive:       100766816 kB
+Active(anon):   16358540 kB
+Inactive(anon):  2908732 kB
+Active(file):     609740 kB
+Inactive(file): 97858084 kB
+Unevictable:         320 kB
+Mlocked:             320 kB
+SwapTotal:      72066584 kB
+SwapFree:       62764316 kB
+Zswap:                 0 kB
+Zswapped:              0 kB
+Dirty:              2256 kB
+Writeback:             0 kB
+AnonPages:      20235528 kB
+Mapped:          1723948 kB
+Shmem:            406328 kB
+KReclaimable:    1773912 kB
+Slab:            2654368 kB
+SReclaimable:    1759372 kB
+SUnreclaim:       894996 kB
+KernelStack:       70864 kB
+PageTables:       173448 kB
+SecPageTables:     15744 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:    135744564 kB
+Committed_AS:   73480068 kB
+VmallocTotal:   34359738367 kB
+VmallocUsed:      482276 kB
+VmallocChunk:          0 kB
+Percpu:            73344 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:         0 kB
+ShmemHugePages:        0 kB
+ShmemPmdMapped:        0 kB
+FileHugePages:      6144 kB
+FilePmdMapped:      6144 kB
+CmaTotal:              0 kB
+CmaFree:          283556 kB
+Unaccepted:            0 kB
+Balloon:               0 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       2048 kB
+Hugetlb:               0 kB
+DirectMap4k:     6204496 kB
+DirectMap2M:    103815168 kB
+DirectMap1G:    24117248 kB
+
+/sys/kernel/mm/transparent_hugepage/enabled: always [madvise] never
+/sys/kernel/mm/transparent_hugepage/defrag (defrag/compaction efforts parameter): always defer defer+madvise [madvise] never
+
+Process Memory:
+Virtual Size: 126351208K (peak: 193525580K)
+Resident Set Size: 4140168K (peak: 4216436K) (anon: 3898544K, file: 241592K, shmem: 32K)
+Swapped out: 917296K
+C-Heap outstanding allocations: 3132817K, retained: 87042K
+
+/proc/sys/kernel/threads-max (system-wide limit on the number of threads): 853429
+/proc/sys/vm/max_map_count (maximum number of memory map areas a process may have): 1048576
+/proc/sys/kernel/pid_max (system-wide limit on number of process identifiers): 4194304
+
+container information not found.
+Steal ticks since vm start: 0
+Steal ticks percentage since vm start:  0.000
+
+CPU: total 32 (initial active 32) (32 cores per cpu, 2 threads per core) family 25 model 33 stepping 2 microcode 0xa201211, cx8, cmov, fxsr, ht, mmx, 3dnowpref, sse, sse2, sse3, ssse3, sse4a, sse4.1, sse4.2, popcnt, lzcnt, tsc, tscinvbit, avx, avx2, aes, erms, clmul, bmi1, bmi2, adx, sha, fma, vzeroupper, clflush, clflushopt
+CPU Model and flags from /proc/cpuinfo:
+model name	: AMD Ryzen 9 5950X 16-Core Processor
+flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid aperfmperf rapl pni pclmulqdq monitor ssse3 fma cx16 sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand lahf_lm cmp_legacy extapic cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw ibs skinit wdt tce topoext perfctr_core perfctr_nb bpext perfctr_llc mwaitx cpb cat_l3 cdp_l3 hw_pstate ssbd mba ibrs ibpb stibp vmmcall fsgsbase bmi1 avx2 smep bmi2 erms invpcid cqm rdt_a rdseed adx smap clflushopt clwb sha_ni xsaveopt xsavec xgetbv1 xsaves cqm_llc cqm_occup_llc cqm_mbm_total cqm_mbm_local user_shstk clzero irperf xsaveerptr rdpru wbnoinvd arat npt lbrv svm_lock nrip_save tsc_scale vmcb_clean flushbyasid decodeassists pausefilter pfthreshold avic v_vmsave_vmload vgif v_spec_ctrl umip pku ospke vaes vpclmulqdq rdpid overflow_recov succor smca fsrm debug_swap
+
+Online cpus: 0-31
+Offline cpus: 
+BIOS frequency limitation: <Not Available>
+Frequency switch latency (ns): 0
+Available cpu frequencies: <Not Available>
+Current governor: powersave
+Core performance/turbo boost: 1
+
+Memory: 4k page, physical 127355964k(1038852k free), swap 72066584k(63081912k free)
+Page Sizes: 4k
+
+vm_info: Java HotSpot(TM) 64-Bit Server VM (17.0.12+8-LTS-jvmci-23.0-b41) for linux-amd64 JRE (17.0.12+8-LTS-jvmci-23.0-b41), built on Jun 11 2024 12:17:53 by "buildslave" with gcc 11.2.0
+
+END.
