@@ -43,11 +43,12 @@ the requested extent becomes a parent; broader classifying nodes are omitted whe
 a more specific classifying candidate exists.
 
 Symbolic extents are structurally unique. Reinserting an identical symbol set
-reuses its existing node before CVA equivalence search, then classifies the
-incoming embedding against every other node. Minimal classifiers become parents
-of the canonical node and its extent propagates through them. If propagation makes
-two nodes acquire the same symbol set, the earlier node remains canonical,
-external edges are rewired to it, and the duplicate node is removed.
+reuses its existing node before CVA equivalence search, then runs the configured
+bounded CVA search while excluding that canonical node from equivalence stopping.
+Discovered minimal classifiers become parents of the canonical node and its extent
+propagates through them. If propagation makes two nodes acquire the same symbol
+set, the earlier node remains canonical, external edges are rewired to it, and the
+duplicate node is removed.
 
 Candidates are ranked by CVA distance to the first, middle and last requested
 embeddings, deduplicated by tensor identity. Common vectors from different

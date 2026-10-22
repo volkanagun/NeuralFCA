@@ -58,8 +58,8 @@ class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
   val noCVA = false
-  val startDistance = 0.52
-  val endDistance = 0.63
+  val startDistance = 0.63
+  val endDistance = 0.64
 
   def train(crrDistance: Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)

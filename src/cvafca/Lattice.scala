@@ -272,8 +272,14 @@ class Lattice(
     var membershipEntries = 0
     val inclusion = mutable.HashMap.empty[(Long, Long), Boolean]
     val equality = mutable.HashMap.empty[(Long, Long), Boolean]
-    final case class ClosureSearch(generators: Vector[Node], equivalent: Option[Node])
-    val closures = mutable.HashMap.empty[(Node, Option[Node]), ClosureSearch]
+    final case class ClosureSearch(generators: Vector[Node], equivalents: Vector[Node])
+    final case class ClosureSearchKey(
+        requested: Node,
+        start: Option[Node],
+        excluded: Option[Node],
+        collectAll: Boolean
+    )
+    val closures = mutable.HashMap.empty[ClosureSearchKey, ClosureSearch]
     val vectorIds = new java.util.IdentityHashMap[Tensor[BFloat16], java.lang.Integer]()
     var nextVectorId = 0
     val targets = mutable.HashMap.empty[Set[Int], Node]
@@ -347,8 +353,13 @@ class Lattice(
         generators.iterator.flatMap(_.children.iterator).filter(seen.add).map(nodeMap).toVector
       else topNodeIds.iterator.take(config.closureSearchFrontier).map(nodeMap).toVector
 
-    def searchClosure(requested: Node, start: Option[Node]): ClosureSearch =
-      closures.getOrElseUpdate((requested, start), {
+    def searchClosure(
+        requested: Node,
+        start: Option[Node],
+        excluded: Option[Node] = None,
+        collectAll: Boolean = false
+    ): ClosureSearch =
+      closures.getOrElseUpdate(ClosureSearchKey(requested, start, excluded, collectAll), {
         val downward = start match
           case Some(node) => includes(node, requested)
           case None => topNodeIds.size <= bottomNodeIds.size
@@ -372,14 +383,15 @@ class Lattice(
         val scheduled = mutable.HashSet.empty[Long]
         val scores = mutable.LongMap.empty[Double]
         val classifying = mutable.LinkedHashMap.empty[Long, Node]
-        var equivalent = Option.empty[Node]
+        val equivalents = mutable.ArrayBuffer.empty[Node]
 
         def measure(node: Node): (Node, Double, Array[Double]) =
           val distances = probes.map(member => node.distance(member.vector)).toArray
           val score = distances.iterator.map(d => if d.isNaN then Double.PositiveInfinity else d).sum / probes.size
           (node, score, distances)
 
-        while frontier.nonEmpty && scheduled.size < config.closureSearchVisits && equivalent.isEmpty do
+        while frontier.nonEmpty && scheduled.size < config.closureSearchVisits &&
+          (collectAll || equivalents.isEmpty) do
           val remaining = config.closureSearchVisits - scheduled.size
           val candidates = frontier.iterator.filter(node => scheduled.add(node.id)).take(remaining).toArray
           val scoreWork = candidates.length.toDouble * probes.size * cva.dimension *
@@ -405,11 +417,12 @@ class Lattice(
           // Fully verify every measured candidate. Beam width limits graph
           // expansion, not which nearby classifiers can position this extent.
           val iterator = ordered.iterator.map(_._1)
-          while iterator.hasNext && equivalent.isEmpty do
+          while iterator.hasNext && (collectAll || equivalents.isEmpty) do
             val candidate = iterator.next()
-            if same(candidate, requested) then equivalent = Some(candidate)
-            else if includes(candidate, requested) then
-              classifying.getOrElseUpdate(candidate.id, candidate)
+            if !excluded.exists(_ eq candidate) then
+              if same(candidate, requested) then equivalents += candidate
+              else if includes(candidate, requested) then
+                classifying.getOrElseUpdate(candidate.id, candidate)
 
           val queued = mutable.HashSet.empty[Long]
           frontier = beam.iterator.flatMap { node =>
@@ -426,13 +439,13 @@ class Lattice(
             (narrower ne broader) && includes(broader, narrower) && !same(broader, narrower)
           }
         }.sortBy(node => (node.size, scores.getOrElse(node.id, Double.PositiveInfinity), node.id))
-        ClosureSearch(generators, equivalent)
+        ClosureSearch(generators, equivalents.toVector)
       })
 
     def findEquivalent(requested: Node, start: Option[Node]): Option[Node] =
       // Equivalence is learned from embedding extents. Symbols identify stored
       // examples, while IDs only address stored nodes and cache predicate results.
-      searchClosure(requested, start).equivalent
+      searchClosure(requested, start).equivalents.headOption
 
     def getClosureConcepts(requested: Node, start: Option[Node]): Vector[Node] =
       searchClosure(requested, start).generators
@@ -449,21 +462,13 @@ class Lattice(
 
     def repositionCanonical(canonical: Node, requested: Node): Node =
       // Exact symbolic reuse must still perform FCA insertion for the incoming
-      // embedding. Search every current node here: duplicate insertion is the
-      // recovery path that repairs any classifications missed by bounded search.
-      val classifying = mutable.ArrayBuffer.empty[Node]
-      nodeMap.valuesIterator.filterNot(_ eq canonical).foreach { candidate =>
-        if same(candidate, requested) then remember(candidate, requested)
-        else if includes(candidate, requested) then classifying += candidate
-      }
+      // embedding. Exclude the canonical node from equivalence short-circuiting
+      // and collect every equivalent/classifying candidate measured by the same
+      // bounded beam search used for ordinary insertion.
+      val placement = searchClosure(requested, None, excluded = Some(canonical), collectAll = true)
+      placement.equivalents.foreach(remember(_, requested))
 
-      val minimal = classifying.filterNot { broader =>
-        classifying.exists { narrower =>
-          (narrower ne broader) && includes(broader, narrower) && !same(broader, narrower)
-        }
-      }.sortBy(node => (node.size, node.id))
-
-      minimal.foreach { parent =>
+      placement.generators.foreach { parent =>
         // A newly discovered, more specific parent replaces any broader direct
         // parent that already contains it according to the learned predicates.
         canonical.parents.iterator.flatMap(nodeMap.get).filter { broader =>
