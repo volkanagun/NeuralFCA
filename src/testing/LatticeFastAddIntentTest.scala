@@ -13,6 +13,30 @@ object LatticeFastAddIntentTest:
 
   def main(args: Array[String]): Unit =
     org.bytedeco.pytorch.global.torch.set_num_threads(1)
+
+    // A distance exactly at the threshold is rejected, including when a probe
+    // has populated the beam search's membership cache.
+    for noCVA <- Seq(false, true) do
+      val boundary = new Lattice(new CVA(2, CvaConfig(0.5, 0.0, noCVA)))
+      val origin = boundary.fastAddIntent(sample("boundary-origin", 0f, 0f))
+      val onThreshold = sample("boundary-limit", 1f, 0f)
+      assert(origin.distance(onThreshold.vector) == 0.5)
+      assert(!origin.classifies(onThreshold))
+      assert(origin.classifies(sample("boundary-inside", 0.5f, 0f)))
+      val separate = boundary.fastAddIntent(onThreshold)
+      assert((separate ne origin) && boundary.size == 2)
+      assert(origin.children.isEmpty && separate.parents.isEmpty)
+      boundary.validate()
+
+    // A radius learned from the training residual must still accept the samples
+    // setting that radius; otherwise mutual equivalence loses reflexivity.
+    val calibrated = new CVA(2, CvaConfig(0.1, 1.0, noCVA = true))
+    val calibrationSamples = Vector(sample("calibration-left", 0f, 0f), sample("calibration-right", 4f, 0f))
+    val calibratedModel = calibrated.fit(calibrationSamples.map(_.vector))
+    val maxResidual = calibrationSamples.map(member => calibrated.distance(calibratedModel, member.vector)).max
+    assert(calibratedModel.radius == Math.nextUp(maxResidual))
+    assert(calibrationSamples.forall(member => calibrated.classifies(calibratedModel, member.vector)))
+
     val cva = new CVA(2, CvaConfig(0.05, 1.0))
     val lattice = new Lattice(cva)
     val shared = sample("shared", 4f, 0f)
@@ -48,21 +72,21 @@ object LatticeFastAddIntentTest:
 
     // Mutual coverage reuses equivalent intents and updates all their ancestors.
     val reused = lattice.fastAddIntent(alias)
-    assert(reused.id == intersection.id && lattice.size == 4)
+    assert((reused eq intersection) && lattice.size == 4)
     assert(reused.symbols == Set("shared", "shared-alias"))
     assert(a.containsSymbol(alias.symbol) && b.containsSymbol(alias.symbol))
-    assert(lattice.fastAddIntent(alias).id == reused.id && lattice.size == 4)
+    assert((lattice.fastAddIntent(alias) eq reused) && lattice.size == 4)
     lattice.validate()
 
-    // An identical symbolic extent is canonical even when a repeated symbol is
-    // supplied with an embedding that its stored node does not classify.
+    // Equal symbol names do not establish equality between different CVAs.
     val symbolic = new Lattice(new CVA(2, CvaConfig(0.01, 1.0)))
     val symbolicFirst = symbolic.fastAddIntent(sample("same-symbol", 0f, 0f))
     val symbolicRepeat = symbolic.fastAddIntent(sample("same-symbol", 40f, 40f))
-    assert(symbolicRepeat.id == symbolicFirst.id && symbolic.size == 1)
+    assert((symbolicRepeat ne symbolicFirst) && symbolic.size == 2)
+    assert(!symbolic.equivalent(symbolicFirst, symbolicRepeat))
     symbolic.validate()
 
-    // Reusing an exact symbolic extent still performs FCA placement. A
+    // Reusing an equivalent intent still performs FCA placement. A
     // disconnected classifier becomes its parent and receives the instance.
     val repositionFixture = new Lattice(cva):
       val point = new Node(100L, Vector(sample("existing-point", 4f, 0f)), this.cva,
@@ -81,25 +105,24 @@ object LatticeFastAddIntentTest:
     assert(repositioned.size == 2)
     repositioned.validate()
 
-    // One-way classification does not establish equivalence, even at 50%.
-    val asymmetric = new Lattice(cva, LatticeConfig(equalityCoverage = 0.5))
+    // One-way classification does not establish equivalence.
+    val asymmetric = new Lattice(cva)
     val line = asymmetric.fastAddIntent(horizontal)
     val point = asymmetric.fastAddIntent(sample("point", 2f, 0f))
-    assert(line.id != point.id, "Both directional coverage thresholds are required")
+    assert(line ne point, "Mutual classification of both complete extents is required")
     assert(point.parents.contains(line.id))
     asymmetric.validate()
 
-    // Equality is a fraction of the OTHER extent, inclusive at the threshold.
-    for threshold <- Seq(0.8, 0.81) do
-      val partial = new Lattice(cva, LatticeConfig(equalityCoverage = threshold))
+    // Partial overlap cannot establish full mutual classification.
+    locally:
+      val partial = new Lattice(cva)
       val left = (0 until 4).map(i => sample(s"left-zero-$i", 0f, 0f)).toVector :+
         sample("left-outlier", 4f, 0f)
       val right = (0 until 4).map(i => sample(s"right-zero-$i", 0f, 0f)).toVector :+
         sample("right-outlier", 0f, 4f)
       val first = partial.fastAddIntent(left)
       val second = partial.fastAddIntent(right)
-      assert((first.id == second.id) == (threshold == 0.8))
-      assert(partial.size == (if threshold == 0.8 then 1 else 3))
+      assert(!partial.equivalent(first, second) && partial.size == 3)
       partial.validate()
 
     // On exact affine faces, learned membership agrees with Boolean incidence.
@@ -135,7 +158,7 @@ object LatticeFastAddIntentTest:
     val axes = (0 until 7).map { axis =>
       Instance(s"axis-$axis", numeric.BFloatTensors((0 until 7).map(i => if i == axis then 4f else 0f)))
     }.toVector
-    val deepFixture = new Lattice(deepCva, LatticeConfig(equalityCoverage = 1.0)):
+    val deepFixture = new Lattice(deepCva):
       for level <- 0 to 6 do
         val node = new Node(4000L + level, Vector(origin) ++ axes.take(level), deepCva, do_avg = false)
         nodeMap.put(node.id, node)
@@ -162,7 +185,7 @@ object LatticeFastAddIntentTest:
     val farEnds = (0 until 12).map { i =>
       Instance(s"end-$i", numeric.BFloatTensors(Seq(4f, i.toFloat, 0f)))
     }.toVector
-    val wideSpaceFixture = new Lattice(wideSpaceCva, LatticeConfig(equalityCoverage = 1.0)):
+    val wideSpaceFixture = new Lattice(wideSpaceCva):
       val root = new Node(5000L, crossing ++ farEnds, wideSpaceCva, do_avg = false)
       nodeMap.put(root.id, root)
       crossing.indices.foreach { i =>
@@ -178,24 +201,24 @@ object LatticeFastAddIntentTest:
     assert(commonLine.children.size == 12 && wideSpace.size == 27)
     wideSpace.validate()
 
-    // Frontier ranking finds equivalent nodes beyond the legacy fast budget.
-    val wideCva = new CVA(2, CvaConfig(0.0, 1.0))
-    val wideFixture = new Lattice(wideCva):
+    // An explicitly wider search finds equivalent nodes beyond the default budget.
+    val wideCva = new CVA(2, CvaConfig(0.01, 1.0))
+    val wideFixture = new Lattice(wideCva, LatticeConfig(closureSearchVisits = 1024,
+      closureSearchFrontier = 512, closureSearchBeamWidth = 16)):
       for index <- 0 until 300 do
         val member = sample(s"isolated-$index", (index % 20).toFloat, (index / 20).toFloat)
         val node = new Node(1000L + index, Vector(member), wideCva, do_avg = false)
         nodeMap.put(node.id, node)
     val wide = wideFixture.cloneLattice()
     val last = wide.fastAddIntent(sample("outside-budget", 19f, 14f))
-    assert(last.id == 1299L && wide.size == 300)
+    assert((last eq wide.node(1299L)) && wide.size == 300)
     wide.validate()
 
-    // Learned predicates can be non-transitive, especially with partial
-    // coverage. Repeated overlaps must still preserve the graph invariants.
-    for noCVA <- Seq(false, true); threshold <- Seq(0.5, 0.8, 1.0) do
+    // Learned predicates can be non-transitive. Repeated overlaps must still
+    // preserve the graph invariants.
+    for noCVA <- Seq(false, true) do
       val random = new scala.util.Random(741L)
-      val overlapping = new Lattice(new CVA(3, CvaConfig(0.1, 1.0, noCVA)),
-        LatticeConfig(equalityCoverage = threshold))
+      val overlapping = new Lattice(new CVA(3, CvaConfig(0.1, 1.0, noCVA)))
       for batch <- 0 until 16 do
         val members = (0 until 3).map { member =>
           Instance(s"overlap-$batch-$member", numeric.BFloatTensors((0 until 3).map(_ =>

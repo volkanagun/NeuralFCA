@@ -21,12 +21,17 @@ class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
 
   }
 
-  def train(embeddingFilename: String, noCVA: Boolean = false, minDistance: Double = 0.8): Lattice =
+  def train(
+      embeddingFilename: String,
+      noCVA: Boolean = false,
+      minDistance: Double = 0.8,
+      latticeConfig: LatticeConfig = LatticeConfig()
+  ): Lattice =
     // Lattice mutation is serialized; scoring owns the worker parallelism.
     nativeTorch.set_num_threads(1)
     val loads = cvaDataset.read(embeddingFilename, device)
     val config = CvaConfig(minDistance, minDistance, noCVA)
-    val lattice = new Lattice(CVA(dim, config))
+    val lattice = new FastLattice(CVA(dim, config))
     if Files.exists(Paths.get(binaryFilename)) then
       lattice.load(binaryFilename)
 
@@ -58,8 +63,8 @@ class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
   val noCVA = false
-  val startDistance = 0.63
-  val endDistance = 0.64
+  val startDistance = 0.65
+  val endDistance = 0.67
 
   def train(crrDistance: Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)
@@ -71,7 +76,7 @@ class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
 
     while (crrDistance < endDistance) {
       train(crrDistance)
-      crrDistance += 0.01
+      crrDistance += 0.02
     }
 
   }
@@ -84,7 +89,7 @@ class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
 
 object CVAWordMain {
   def main(args: Array[String]): Unit = {
-    val max = 500000
+    val max = 50000000
     new CVAWordIncremental(0, max).train()
 
   }

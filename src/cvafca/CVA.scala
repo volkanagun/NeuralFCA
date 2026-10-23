@@ -56,10 +56,7 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     val (projection, commonVector) = CVAUtil.compute(tensors)
     val provisional = CvaModel(commonVector, projection, radius = 0.0)
     val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
-    val radius = math.max(
-      config.classificationThreshold,
-      maxTrainingResidual * config.trainingRadiusScale
-    )
+    val radius = calibratedRadius(maxTrainingResidual)
 
     CvaModel(commonVector, projection, radius)
 
@@ -72,10 +69,7 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     val commonVector = numeric.BFloatTensors.average(tensors)
     val provisional = CvaModel(commonVector, projection, radius = 0.0)
     val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
-    val radius = math.max(
-      config.classificationThreshold,
-      maxTrainingResidual * config.trainingRadiusScale
-    )
+    val radius = calibratedRadius(maxTrainingResidual)
 
     CvaModel(commonVector, projection, radius)
 
@@ -93,11 +87,17 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     validate(commonVector)
     val provisional = CvaModel(commonVector, projection, radius = 0.0)
     val maxTrainingResidual = tensors.iterator.map(distance(provisional, _)).max
-    val radius = math.max(
-      config.classificationThreshold,
-      maxTrainingResidual * config.trainingRadiusScale
-    )
+    val radius = calibratedRadius(maxTrainingResidual)
     CvaModel(commonVector, projection, radius)
+
+  /** A data-calibrated open radius includes the samples used to set its bound
+    * when trainingRadiusScale is at least one. Keep the configured threshold
+    * exact whenever it determines the radius.
+    */
+  private def calibratedRadius(maxTrainingResidual: Double): Double =
+    val calibrated = maxTrainingResidual * config.trainingRadiusScale
+    if calibrated > config.classificationThreshold then Math.nextUp(calibrated)
+    else config.classificationThreshold
 
   /** Refit after an extent change. */
   def update(samples: Iterable[Tensor[BFloat16]]): CvaModel =
@@ -139,7 +139,7 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
     }
 
   def classifies(model: CvaModel, x: Tensor[BFloat16]): Boolean =
-    distance(model, x) <= model.radius
+    distance(model, x) < model.radius
 
   private def validate(vector: Tensor[BFloat16]): Unit =
     require(

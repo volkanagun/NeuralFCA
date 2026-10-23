@@ -11,14 +11,14 @@ import torch.{BFloat16, Tensor}
  *   CVA projection  : projection
  *   symbolic extent : symbols / instance keys
  *
- * parents are more general nodes (larger symbolic extents).
- * children are more specific nodes (smaller symbolic extents).
+ * Parents classify each sample of their children's extents.
+ * Children are more specific classifiers under the learned CVA relation.
  */
 final class Node private[cvafca] (
     val id: Long,
     initialInstances: IterableOnce[Instance],
     private val cva: CVA,
-    private val do_avg:Boolean = true,
+    private val do_avg:Boolean = false,
     restoredModel: Option[CvaModel] = None
 ):
 
@@ -71,12 +71,9 @@ final class Node private[cvafca] (
   def distance(vector: Tensor[BFloat16]): Double =
     cva.distance(currentModel, vector)
 
-  /** Add a new extent item and incrementally refresh common vector + projection. */
+  /** Append a new stored sample and refresh its common vector and projection. */
   def addInstance(instance: Instance): Boolean =
-    if extent.contains(instance.symbol) then false
-    else
-      addWithoutRefit(instance)
-      true
+    addInstances(Vector(instance))
 
   /** Merge another extent into this node, then perform one CVA rebuild. */
   def addInstances(newInstances: Iterable[Instance]): Boolean =
@@ -86,7 +83,9 @@ final class Node private[cvafca] (
         addWithoutRefit(instance)
         changed = true
     }
-    if changed then refit()
+    if changed then
+      extentChanged.foreach(_.apply())
+      refit()
     changed
 
   /** Append a complete intersection extent without changing the model. */
@@ -106,7 +105,6 @@ final class Node private[cvafca] (
   private def addWithoutRefit(instance: Instance): Unit =
     extent.put(instance.symbol, instance)
     extentSymbols += instance.symbol
-    extentChanged.foreach(_.apply())
 
   /** Refresh the complete extent through the configured CVA.update path. */
   def refit(): Unit =

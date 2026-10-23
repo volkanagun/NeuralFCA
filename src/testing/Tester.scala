@@ -84,12 +84,12 @@ object Tester {
     val fastFirst = fast.fastAddIntent(fastA)
     val fastSecond = fast.fastAddIntent(fastB)
     assert(fast.size == 1)
-    assert(fastFirst.id == fastSecond.id)
+    assert(fastFirst eq fastSecond)
     assert(fastSecond.symbols == Set("fast-a", "fast-b"))
     fast.validate()
 
     val fastRepeat = fast.fastAddIntent(fastB)
     assert(fast.size == 1)
-    assert(fastRepeat.id == fastSecond.id)
+    assert(fastRepeat eq fastSecond)
   }
 }

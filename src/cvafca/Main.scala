@@ -8,13 +8,7 @@ package cvafca
     )
   )
 
-  val lattice = new Lattice(
-    cva,
-    LatticeConfig(
-      equalityCoverage = 1.0,
-      requireMutualCommonClassification = true
-    )
-  )
+  val lattice = new Lattice(cva)
 
   val data = Vector(
     Instance("come-home",   numeric.BFloatTensors(Seq(1.00f, 0.10f, 0.90f))),
