@@ -8,13 +8,13 @@ import torch.{BFloat16, Device, Tensor}
 
 /** Budgets for the learned FastAddIntent approximation. */
 final case class FastLatticeConfig(
-    searchVisits: Int = 2048,
-    searchFrontier: Int = 128,
-    searchBeamWidth: Int = 48,
-    maxChildCandidates: Int = 128,
-    maxIntersections: Int = 64,
-    maxIntersectionDepth: Int = 24,
-    repairPasses: Int = 4,
+    searchVisits: Int = 1024,
+    searchFrontier: Int = 64,
+    searchBeamWidth: Int = 8,
+    maxChildCandidates: Int = 64,
+    maxIntersections: Int = 24,
+    maxIntersectionDepth: Int = 4,
+    repairPasses: Int = 2,
     propagationChecks: Int = 100000,
     reachabilityVisits: Int = 4096,
     parallelSearch: Boolean = true

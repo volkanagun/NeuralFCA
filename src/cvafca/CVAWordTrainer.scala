@@ -7,8 +7,8 @@ import torch.{BFloat16, Tensor}
 final case class Instance(symbol: String, vector: Tensor[BFloat16])
 
 class CVAWordTrainer(val start: Int, val limit: Int, val dim: Int) {
-  val batchSize = 4
-  val parallelSize = 4
+  val batchSize = 1
+  val parallelSize = 1
   val device = torch.Device.CPU
   val cvaDataset = new CVADataset(batchSize, start, limit)
   val binaryFilename = "resources/binary/fca-cva.bin"
@@ -63,8 +63,8 @@ class CVAWordIncremental(val start: Int, val limit: Int, val dim: Int = 300) {
   val folder = "resources/embeddings/"
   val embeddingFilename = folder + "vectors.txt"
   val noCVA = false
-  val startDistance = 0.65
-  val endDistance = 0.67
+  val startDistance = 0.75
+  val endDistance = 0.78
 
   def train(crrDistance: Double): Unit = {
     val trainer = new CVAWordTrainer(start, limit, dim)

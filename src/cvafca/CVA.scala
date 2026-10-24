@@ -3,7 +3,7 @@ package cvafca
 import numeric.BFloatTensors.*
 import concept.CVAUtil
 import org.bytedeco.javacpp.PointerScope
-import torch.{BFloat16, Tensor}
+import torch.{BFloat16, Device, Float32, Tensor}
 
 import scala.util.Using
 
@@ -17,7 +17,20 @@ final case class CvaModel(
                            commonVector: Tensor[BFloat16],
                            projection: Tensor[BFloat16],
                            radius: Double
-                         )
+                         ){
+
+  def project(x: Tensor[BFloat16]): Tensor[BFloat16] =
+    projection.matmul(x.flatten).reshape(x.shape *)
+
+  def distance(x: Tensor[BFloat16]): Double =
+    Using.resource(new PointerScope()) { _ =>
+      val residual = project(x).flatten - commonVector.flatten
+      val euclideanDistance = math.sqrt((residual * residual).sum.scalar.toDouble)
+
+      if euclideanDistance.isPosInfinity then 1.0
+      else euclideanDistance / (1.0 + euclideanDistance)
+    }
+}
 
 /** Common Vector Approach backed entirely by Storch tensors. */
 final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
@@ -43,6 +56,12 @@ final class CVA(val dimension: Int, val config: CvaConfig = CvaConfig()):
       identity
     }
   }
+
+  def emptyModel():CvaModel =
+    val ze = Array.tabulate(dimension){i=>0f}.toSeq
+    val tensor = numeric.BFloatTensors(ze.toSeq, Device.CPU)
+    fit_cva(Iterable(tensor))
+
 
   def fit(samples: Iterable[Tensor[BFloat16]]): CvaModel =
     if config.noCVA then fit_avg(samples)
