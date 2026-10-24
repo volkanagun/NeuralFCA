@@ -1,10 +1,9 @@
 package simple
 
-/** Run with simple.SimpleInsertionComparisonTest. */
+/** Compare both insertions on the first 500 records in vectors.txt.
+  * Run with simple.SimpleInsertionComparisonTest from the project root.
+  */
 object SimpleInsertionComparisonTest:
-  private def sample(id: String, x: Float, y: Float): Instance =
-    new Instance(id, numeric.BFloatTensors(Seq(x, y)))
-
   private def extentSignatures(lattice: Lattice): Set[Set[String]] =
     lattice.getNodes.iterator.map(_.extent.iterator.map(_.id).toSet).toSet
 
@@ -24,36 +23,41 @@ object SimpleInsertionComparisonTest:
 
   def main(args: Array[String]): Unit =
     org.bytedeco.pytorch.global.torch.set_num_threads(1)
-    val input = Vector(
-      sample("origin", 0f, 0f),
-      sample("distant", 20f, 0f),
-      sample("near-origin", 0.2f, 0f),
-      sample("near-distant", 20.2f, 0f)
-    )
-    val fast = new Lattice(dim = 2)
-    val beam = new Lattice(dim = 2)
+    val filename = args.headOption.getOrElse("resources/embeddings/vectors.txt")
+    val count = sys.props.get("simple.comparison.count").map(_.toInt).getOrElse(500)
+    require(count > 0, "Comparison count must be positive")
+    val input = new cvafca.CVADataset(size = 32, start = 0, limit = count)
+      .read(filename, torch.Device.CPU)
+      .flatMap(_.iterator)
+      .map(embedding => new Instance(embedding.symbol, embedding.vector))
+      .toVector
+    require(input.size == count, s"Expected $count embeddings, read ${input.size}")
+    val dimension = input.head.attributes.numel.toInt
+    val fast = new Lattice(dim = dimension)
+    val beam = new Lattice(dim = dimension)
     var fastNanos = 0L
     var beamNanos = 0L
 
-    input.foreach { instance =>
+    input.zipWithIndex.foreach { (instance, index) =>
       val fastStarted = System.nanoTime()
       val fastConcept = fast.addInstanceWithFastAddIntent(instance)
       fastNanos += System.nanoTime() - fastStarted
 
       val beamStarted = System.nanoTime()
-      val beamConcept = beam.beamInsert(instance, beamWidth = 4, maxVisits = 16)
+      val beamConcept = beam.beamInsert(instance)
       beamNanos += System.nanoTime() - beamStarted
 
       assert(fastConcept.extent.exists(_.id == instance.id))
       assert(beamConcept.extent.exists(_.id == instance.id))
-      assert(fast.getInstances.map(_.id) == beam.getInstances.map(_.id))
-      assertReciprocalLinks(fast)
-      assertReciprocalLinks(beam)
+      if (index + 1) % 5 == 0 || index + 1 == input.size then
+        println(s"Compared ${index + 1}/$count embeddings")
     }
 
     assert(fast.getInstances.map(_.id) == input.map(_.id))
     assert(beam.getInstances.map(_.id) == input.map(_.id))
-    assert(beam.getNodes.size == input.size + 1) // One node per object plus bottom.
+    assertReciprocalLinks(fast)
+    assertReciprocalLinks(beam)
+    assert(beam.getNodes.size == input.map(_.id).distinct.size + 1)
     val commonExtents = extentSignatures(fast).intersect(extentSignatures(beam)).size
     println(
       f"FastAddIntent: ${fast.getNodes.size} concepts, ${edgeCount(fast)} links, " +
