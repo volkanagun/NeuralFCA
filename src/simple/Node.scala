@@ -46,11 +46,11 @@ class Node(
     }
   }
 
-  
+
   def fit(): Unit = {
     val (projection, commonVector) = CVAUtil.compute(extent.map(_.attributes).toArray)
     this.intent = CvaModel(commonVector, projection, radius = 0.0)
-     
+
   }
 
   def intersect(node: Node):Node = {

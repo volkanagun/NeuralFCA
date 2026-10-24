@@ -2,7 +2,11 @@ package simple
 import cvafca.{CVA, CvaModel}
 import torch.{BFloat16, Tensor}
 
+import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, DataOutputStream, FileInputStream, FileOutputStream}
+import java.nio.file.{AtomicMoveNotSupportedException, Files, Paths, StandardCopyOption}
+import java.util.stream.IntStream
 import scala.collection.mutable
+import scala.util.{Random, Using}
 
 class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6) {
 
@@ -37,8 +41,20 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   // ==================================================
 
   private def createNode(instance: Instance): Node = {
-    val model = cva.fit_cva(mutable.Iterable(instance.attributes))
-    Node(0, model, instance)
+    beamConceptsByInstance.get(instance.id) match {
+      case Some(existing) => existing
+      case None => {
+        val model = cva.fit_cva(mutable.Iterable(instance.attributes))
+        Node(0, model, instance)
+      }
+    }
+  }
+  
+  private def addNode(node: Node):Node ={
+    nextNodeId += 1
+    nodes += node
+    intentIndex(node.intent.commonVector) = node
+    node
   }
 
   private def createNode(
@@ -46,23 +62,17 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
                           extent: Set[Instance]
                         ): Node = {
 
-    require(
-      !intentIndex.contains(intent.commonVector),
-      s"Concept already exists: $intent"
-    )
-
-    val node = new Node(
-      nextNodeId,
-      intent,
-      extent
-    )
-
-    nextNodeId += 1
-
-    nodes += node
-    intentIndex(intent.commonVector) = node
-
-    node
+    if (!intentIndex.contains(intent.commonVector)) {
+      val node = new Node(
+        nextNodeId,
+        intent,
+        extent
+      )
+      addNode(node)
+    }
+    else{
+      intentIndex(intent.commonVector)
+    }
   }
 
 
@@ -104,7 +114,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
    * Precondition:
    *   intent subsetOf generator.intent
    */
-  private def findCanonicalGenerator(
+  private[simple] def findCanonicalGenerator(
                                       intent: Node,
                                       generator: Node
                                     ): Node = {
@@ -130,6 +140,37 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
 
         case None =>
           searching = false
+      }
+    }
+
+    current
+  }
+
+  /** Search each parent layer concurrently when it is wide enough to pay for
+    * parallel dispatch. `findFirst` preserves the serial search's parent order.
+    * Only the current layer is read by workers; graph traversal stays sequential.
+    */
+  private[simple] def findCanonicalGeneratorParallel(
+      intent: Node,
+      generator: Node
+  ): Node = {
+    var current = generator
+    var searching = true
+
+    while (searching) {
+      val next = if current.parents.size < 8 then {
+        current.parents.find(parent => intent.subset_of(parent, ratio, threshold))
+      } else {
+        val parents = current.parents.toVector
+        val first = IntStream.range(0, parents.size).parallel()
+          .filter(index => intent.subset_of(parents(index), ratio, threshold))
+          .findFirst()
+        if first.isPresent then Some(parents(first.getAsInt)) else None
+      }
+
+      next match {
+        case Some(parent) => current = parent
+        case None => searching = false
       }
     }
 
@@ -235,7 +276,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
 
     // Step 1: locate canonical generator.
     val canonicalGenerator =
-      findCanonicalGenerator(intent, generator)
+      findCanonicalGeneratorParallel(intent, generator)
 
     // Step 2: existing exact concept?
     if (canonicalGenerator == intent) {
@@ -340,46 +381,64 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
     scored.toVector
   }
 
-  /** Approximate insertion: one new concept, at most `maxVisits` CVA scores.
+
+  /** Keep the closest qualifying candidates, excluding comparable extents so
+    * each selected parent contributes a different branch of the lattice.
+    */
+  private def beamParents(
+      candidates: Vector[(Node, Double)],
+      maxParents: Int
+  ): Vector[Node] = {
+    val ranked = candidates.filter(_._2 <= threshold.toDouble)
+      .sortBy { case (node, distance) => (distance, node.id) }
+    val selected = mutable.ArrayBuffer.empty[(Node, Set[String])]
+    val iterator = ranked.iterator
+
+    while (iterator.hasNext && selected.size < maxParents) {
+      val candidate = iterator.next()._1
+      val extentIds = candidate.extent.iterator.map(_.id).toSet
+      if (!selected.exists { case (_, ids) =>
+        extentIds.subsetOf(ids) || ids.subsetOf(extentIds)
+      }) selected += ((candidate, extentIds))
+    }
+
+    selected.iterator.map(_._1).toVector
+  }
+
+  /** Approximate insertion: one object and up to maxParents common concepts.
     * A repeated instance ID reuses its existing object concept.
     */
   def beamInsert(
       instance: Instance,
-      beamWidth: Int = 16,
-      maxVisits: Int = 256
+      beamWidth: Int = 64,
+      maxVisits: Int = 1024,
+      maxParents: Int = 4
   ): Node = this.synchronized {
-    require(beamWidth > 0, "beamWidth must be positive")
-    require(maxVisits > 0, "maxVisits must be positive")
-    beamConceptsByInstance.get(instance.id) match {
+    require(maxParents > 0, "maxParents must be positive")
+
+   /*
+      beamConceptsByInstance.get(instance.id) match {
       case Some(existing) => return existing
       case None =>
     }
+    */
 
-    val candidates = beamCandidates(instance, beamWidth, maxVisits)
-    val parent = candidates.iterator.filter(_._2 <= threshold.toDouble)
-      .minByOption { case (node, distance) => (node.size, distance, node.id) }
-      .map(_._1)
+    val parents = beamParents(beamCandidates(instance, beamWidth, maxVisits), maxParents)
 
     val proposed = createNode(instance)
-    val objectConcept = createNode(proposed.intent, Set.empty[Instance])
-    parent.foreach { upper =>
-      if (upper.children.contains(bottomNode)) removeLink(upper, bottomNode)
-      setLink(upper, objectConcept)
+    val objectConcept = createNode(proposed.intent, Set(instance))
+    parents.foreach { upper =>
+      // The common intent has the union of both extents, so it lies above
+      // the existing concept and the new object concept.
+      val intersection = upper.intersect(proposed)
+      val commonConcept = createNode(intersection.intent, intersection.extent)
+      setLink(commonConcept, upper)
+      setLink(commonConcept, objectConcept)
     }
     setLink(objectConcept, bottomNode)
 
     instances(instance.id) = instance
     beamConceptsByInstance(instance.id) = objectConcept
-    val visited = mutable.HashSet.empty[Int]
-    val pending = mutable.ArrayDeque(objectConcept)
-    while (pending.nonEmpty) {
-      val node = pending.removeLast()
-      if (visited.add(node.id)) {
-        node.extent = node.extent + instance
-        node.parents.foreach(pending.append)
-        node.fit()
-      }
-    }
 
     recentBeamConcepts.append(objectConcept)
     if (recentBeamConcepts.size > 32) recentBeamConcepts.removeHead()
@@ -450,6 +509,9 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   def getNodes: Seq[Node] =
     nodes.toVector
 
+  def nodeSize:Int =
+    nodes.size
+
   def getInstances: Seq[Instance] =
     instances.values.toVector
 
@@ -464,17 +526,230 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   def bottom: Node =
     bottomNode
 
+  /** Save the exact graph and fitted CVA models so beam insertion can resume. */
+  def save(filename: String): Lattice = this.synchronized {
+    val target = Paths.get(filename).toAbsolutePath
+    Files.createDirectories(target.getParent)
+    val temporary = Files.createTempFile(target.getParent, ".simple-lattice-", ".tmp")
+    try {
+      Using.resource(new FileOutputStream(temporary.toFile)) { file =>
+        Using.resource(new DataOutputStream(new BufferedOutputStream(file))) { out =>
+          out.writeInt(Lattice.FileMagic)
+          out.writeInt(Lattice.FileVersion)
+          out.writeInt(dim)
+          out.writeFloat(ratio)
+          out.writeFloat(threshold)
+          out.writeInt(nextNodeId)
+
+          out.writeInt(instances.size)
+          instances.valuesIterator.foreach { instance =>
+            out.writeUTF(instance.id)
+            writeVector(out, instance.attributes)
+          }
+
+          out.writeInt(nodes.size)
+          nodes.foreach { node =>
+            out.writeInt(node.id)
+            writeVector(out, node.intent.commonVector)
+            writeProjection(out, node.intent.projection)
+            out.writeDouble(node.intent.radius)
+            out.writeInt(node.extent.size)
+            node.extent.foreach(member => out.writeUTF(member.id))
+            out.writeInt(node.children.size)
+            node.children.foreach(child => out.writeInt(child.id))
+          }
+
+          out.writeInt(recentBeamConcepts.size)
+          recentBeamConcepts.foreach(node => out.writeInt(node.id))
+          out.writeInt(beamConceptsByInstance.size)
+          beamConceptsByInstance.foreach { (id, node) =>
+            out.writeUTF(id)
+            out.writeInt(node.id)
+          }
+          out.flush()
+          file.getFD.sync()
+        }
+      }
+      try Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE,
+        StandardCopyOption.REPLACE_EXISTING)
+      catch {
+        case _: AtomicMoveNotSupportedException =>
+          Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING)
+      }
+    } finally Files.deleteIfExists(temporary)
+    this
+  }
+
+  /** Replace this lattice with a compatible checkpoint. A failed read leaves it unchanged. */
+  def load(filename: String): Lattice = this.synchronized {
+    val restored = Using.resource(new DataInputStream(new BufferedInputStream(new FileInputStream(filename)))) { in =>
+      require(in.readInt() == Lattice.FileMagic, "Not a simple lattice checkpoint")
+      require(in.readInt() == Lattice.FileVersion, "Unsupported simple lattice checkpoint version")
+      require(in.readInt() == dim, "Checkpoint dimension does not match lattice dimension")
+      in.readFloat() == ratio && in.readFloat() == threshold
+
+      val savedNextId = readCount(in, "next node ID")
+
+      val savedInstances = mutable.LinkedHashMap.empty[String, Instance]
+      val instanceCount = readCount(in, "instance count")
+      val instanceProgress = loadingProgress("instances", instanceCount)
+      instanceProgress(0)
+      for (index <- 0 until instanceCount) {
+        val id = in.readUTF()
+        val instance = new Instance(id, readVector(in))
+        require(!savedInstances.contains(id), s"Duplicate instance ID: $id")
+        savedInstances(id) = instance
+        instanceProgress(index + 1)
+      }
+
+      val savedNodes = mutable.ArrayBuffer.empty[Node]
+      val byId = mutable.HashMap.empty[Int, Node]
+      val edges = mutable.ArrayBuffer.empty[(Int, Vector[Int])]
+      val nodeCount = readCount(in, "node count")
+      require(nodeCount > 0, "Checkpoint has no bottom node")
+      val nodeProgress = loadingProgress("concepts", nodeCount)
+      nodeProgress(0)
+      for (index <- 0 until nodeCount) {
+        val id = readCount(in, "node ID")
+        require(!byId.contains(id), s"Duplicate node ID: $id")
+        val common = readVector(in)
+        val projection = readProjection(in)
+        val radius = in.readDouble()
+        require(!radius.isNaN && radius >= 0.0, s"Invalid radius for node $id")
+        val extentCount = readCount(in, "extent size")
+        val memberIds = Vector.fill(extentCount)(in.readUTF())
+        require(memberIds.distinct.size == memberIds.size, s"Duplicate extent member in node $id")
+        val extent = memberIds.map(memberId => savedInstances.getOrElse(memberId,
+          throw new IllegalArgumentException(s"Unknown extent member: $memberId"))).toSet
+        val node = if id == bottomNode.id then bottomNode
+          else new Node(id, cvafca.CvaModel(common, projection, radius), extent)
+        if id == bottomNode.id then {
+          // Commit the bottom model only after the complete file has been checked.
+          savedNodes += new Node(id, cvafca.CvaModel(common, projection, radius), extent)
+        } else savedNodes += node
+        byId(id) = node
+        val childCount = readCount(in, "child count")
+        edges += ((id, Vector.fill(childCount)(readCount(in, "child ID"))))
+        nodeProgress(index + 1)
+      }
+      require(byId.contains(bottomNode.id), "Checkpoint is missing its bottom node")
+      require(savedNextId > byId.keysIterator.max, "Invalid next node ID")
+      edges.foreach { (id, children) =>
+        require(children.distinct.size == children.size, s"Duplicate child link for node $id")
+        children.foreach { childId =>
+          require(childId != id && byId.contains(childId), s"Invalid child $childId of node $id")
+        }
+      }
+
+      val recentCount = readCount(in, "recent concept count")
+      val recentIds = Vector.fill(recentCount)(readCount(in, "recent concept ID"))
+      recentIds.foreach(id => require(byId.contains(id), s"Unknown recent concept $id"))
+      val mappingCount = readCount(in, "instance-concept mapping count")
+      val mappings = Vector.fill(mappingCount)((in.readUTF(), readCount(in, "object concept ID")))
+      require(mappings.map(_._1).distinct.size == mappings.size, "Duplicate object concept mapping")
+      mappings.foreach { (id, nodeId) =>
+        require(savedInstances.contains(id) && byId.contains(nodeId),
+          s"Invalid object concept mapping for $id")
+      }
+      require(in.read() == -1, "Trailing data in simple lattice checkpoint")
+      (savedInstances, savedNodes, byId, edges, recentIds, mappings, savedNextId)
+    }
+
+    val (savedInstances, savedNodes, byId, edges, recentIds, mappings, savedNextId) = restored
+    val savedBottom = savedNodes.find(_.id == bottomNode.id).get
+    bottomNode.intent = savedBottom.intent
+    bottomNode.extent = savedBottom.extent
+    nodes.clear()
+    savedNodes.foreach(node => nodes += (if node.id == bottomNode.id then bottomNode else node))
+    nodes.foreach { node =>
+      node.parents.clear()
+      node.children.clear()
+    }
+    val linkProgress = loadingProgress("linking concepts", edges.size)
+    linkProgress(0)
+    edges.iterator.zipWithIndex.foreach { case ((id, children), index) =>
+      children.foreach(childId => setLink(byId(id), byId(childId)))
+      linkProgress(index + 1)
+    }
+    instances.clear()
+    instances.addAll(savedInstances)
+    intentIndex.clear()
+    nodes.foreach(node => intentIndex(node.intent.commonVector) = node)
+    recentBeamConcepts.clear()
+    recentIds.foreach(id => recentBeamConcepts.append(byId(id)))
+    beamConceptsByInstance.clear()
+    mappings.foreach { (id, nodeId) => beamConceptsByInstance(id) = byId(nodeId) }
+    nextNodeId = savedNextId
+    println(s"Loaded lattice checkpoint: ${instances.size} instances, ${nodes.size} concepts")
+    this
+  }
+
+  /** Show completed counts and periodic updates without printing for every node. */
+  private def loadingProgress(stage: String, total: Int): Int => Unit = {
+    var lastPrintedAt = 0L
+    completed => {
+      val now = System.nanoTime()
+      if (completed == 0 || completed == total || now - lastPrintedAt >= 2000000000L) {
+        val percentage = if total == 0 then 100 else completed.toLong * 100 / total
+        println(s"Loading lattice $stage: $completed/$total ($percentage%)")
+        lastPrintedAt = now
+      }
+    }
+  }
+
+  private def readCount(in: DataInputStream, name: String): Int = {
+    val value = in.readInt()
+    require(value >= 0, s"Invalid $name: $value")
+    value
+  }
+
+  private def writeVector(out: DataOutputStream, tensor: Tensor[BFloat16]): Unit = {
+    val shape = tensor.shape
+    require(shape.nonEmpty && shape.foldLeft(1L)((size, axis) => size * axis) == dim.toLong,
+      "Vector shape does not match lattice dimension")
+    out.writeInt(shape.length)
+    shape.foreach(out.writeInt)
+    numeric.BFloatTensors.toArray(tensor).foreach { value =>
+      out.writeShort(java.lang.Float.floatToRawIntBits(value) >>> 16)
+    }
+  }
+
+  private def readVector(in: DataInputStream): Tensor[BFloat16] = {
+    val rank = readCount(in, "vector rank")
+    require(rank > 0 && rank <= 8, s"Invalid vector rank: $rank")
+    val shape = Array.fill(rank)(readCount(in, "vector dimension"))
+    require(shape.foldLeft(1L)((size, axis) => size * axis) == dim.toLong,
+      "Checkpoint vector shape does not match lattice dimension")
+    val values = Array.fill(dim)(java.lang.Float.intBitsToFloat(in.readUnsignedShort() << 16))
+    numeric.BFloatTensors(values.toIndexedSeq).view(shape *)
+  }
+
+  private def writeProjection(out: DataOutputStream, tensor: Tensor[BFloat16]): Unit = {
+    require(tensor.shape.sameElements(Array(dim, dim)), "Invalid CVA projection shape")
+    val values = numeric.BFloatTensors.toArray(tensor)
+    val identity = values.indices.forall(i => values(i) == (if i / dim == i % dim then 1f else 0f))
+    out.writeBoolean(identity)
+    if !identity then values.foreach(value => out.writeShort(java.lang.Float.floatToRawIntBits(value) >>> 16))
+  }
+
+  private def readProjection(in: DataInputStream): Tensor[BFloat16] = {
+    if in.readBoolean() then bottomModel.projection
+    else {
+      val values = Array.fill(Math.multiplyExact(dim, dim))(
+        java.lang.Float.intBitsToFloat(in.readUnsignedShort() << 16))
+      numeric.BFloatTensors(values.toIndexedSeq).view(dim, dim)
+    }
+  }
+
 
   // ==================================================
   // PRINT CONCEPTS
   // ==================================================
 
-  def printConcepts(): Unit = {
+  def printConcepts(size:Int = 3, limit:Int = 4): Unit = {
 
-    println("\nCONCEPTS")
-
-    nodes
-      .sortBy(n => (n.extent.size, n.id))
+    Random.shuffle(nodes.filter(node=> node.size >= size))
+      .take(limit)
       .foreach(println)
   }
 
@@ -585,4 +860,9 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
       reachabilityValid &&
       reverseEdgesValid
   }
+}
+
+private object Lattice {
+  val FileMagic = 0x534C4154 // "SLAT"
+  val FileVersion = 1
 }
