@@ -4,7 +4,7 @@ import torch.{BFloat16, Tensor}
 
 import scala.collection.mutable
 
-class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6) {
+class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6) {
 
   // All inserted objects
   private val instances =
@@ -17,6 +17,10 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
   // Intent -> Concept index
   private val intentIndex =
     mutable.HashMap.empty[torch.Tensor[torch.BFloat16], Node]
+
+  // Recent concepts supplement the graph frontier when the bottom has many parents.
+  private val recentBeamConcepts = mutable.ArrayDeque.empty[Node]
+  private val beamConceptsByInstance = mutable.HashMap.empty[String, Node]
 
   private var nextNodeId = 0
   private val cva = new CVA(dim)
@@ -214,6 +218,7 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
                              generator: Node
                            ): Node = {
 
+
    /* require(
       intent.subsetOf(attributes),
       "Unknown attributes"
@@ -302,13 +307,97 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
 
 
   // ==================================================
+  // BOUNDED BEAM INSERT
+  // ==================================================
+
+  /** Score a bounded graph frontier, expanding only the closest concepts. */
+  private def beamCandidates(
+      instance: Instance,
+      beamWidth: Int,
+      maxVisits: Int
+  ): Vector[(Node, Double)] = {
+    val visited = mutable.HashSet.empty[Int]
+    val scored = mutable.ArrayBuffer.empty[(Node, Double)]
+    val seedLimit = math.min(maxVisits.toLong, beamWidth.toLong * 4L).toInt
+    val recent = recentBeamConcepts.reverseIterator.take(math.min(beamWidth, seedLimit)).toVector
+    var frontier = (recent.iterator ++ bottomNode.parents.iterator
+      .take(seedLimit - recent.size)).toVector.distinctBy(_.id)
+
+    while (frontier.nonEmpty && scored.size < maxVisits) {
+      val layer = frontier.filter(node => visited.add(node.id))
+        .take(maxVisits - scored.size)
+      val ranked = layer.map { node =>
+        val distance = node.intent.distance(instance.attributes)
+        (node, if (distance.isNaN) Double.PositiveInfinity else distance)
+      }
+      scored ++= ranked
+      frontier = ranked.sortBy(_._2).take(beamWidth).iterator
+        .flatMap(_._1.parents.iterator)
+        .filterNot(node => (node eq bottomNode) || visited.contains(node.id))
+        .take(maxVisits - scored.size).toVector.distinctBy(_.id)
+    }
+
+    scored.toVector
+  }
+
+  /** Approximate insertion: one new concept, at most `maxVisits` CVA scores.
+    * A repeated instance ID reuses its existing object concept.
+    */
+  def beamInsert(
+      instance: Instance,
+      beamWidth: Int = 16,
+      maxVisits: Int = 256
+  ): Node = this.synchronized {
+    require(beamWidth > 0, "beamWidth must be positive")
+    require(maxVisits > 0, "maxVisits must be positive")
+    beamConceptsByInstance.get(instance.id) match {
+      case Some(existing) => return existing
+      case None =>
+    }
+
+    val candidates = beamCandidates(instance, beamWidth, maxVisits)
+    val parent = candidates.iterator.filter(_._2 <= threshold.toDouble)
+      .minByOption { case (node, distance) => (node.size, distance, node.id) }
+      .map(_._1)
+
+    val proposed = createNode(instance)
+    val objectConcept = createNode(proposed.intent, Set.empty[Instance])
+    parent.foreach { upper =>
+      if (upper.children.contains(bottomNode)) removeLink(upper, bottomNode)
+      setLink(upper, objectConcept)
+    }
+    setLink(objectConcept, bottomNode)
+
+    instances(instance.id) = instance
+    beamConceptsByInstance(instance.id) = objectConcept
+    val visited = mutable.HashSet.empty[Int]
+    val pending = mutable.ArrayDeque(objectConcept)
+    while (pending.nonEmpty) {
+      val node = pending.removeLast()
+      if (visited.add(node.id)) {
+        node.extent = node.extent + instance
+        node.parents.foreach(pending.append)
+        node.fit()
+      }
+    }
+
+    recentBeamConcepts.append(objectConcept)
+    if (recentBeamConcepts.size > 32) recentBeamConcepts.removeHead()
+    objectConcept
+  }
+
+
+  // ==================================================
   // ADD INSTANCE
   // ==================================================
 
   /**
-   * Incrementally inserts an object into the context.
+   * Incrementally inserts an object using the bounded beam path.
    */
-  def addInstance(instance: Instance): Node = {
+  def addInstance(instance: Instance): Node = beamInsert(instance)
+
+  /** Retains the original recursive FastAddIntent insertion path. */
+  def addInstanceWithFastAddIntent(instance: Instance): Node = {
 
 /*    require(
       !instances.contains(instance.id),
@@ -349,6 +438,7 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
       }
     }
 
+    beamConceptsByInstance(instance.id) = objectConcept
     objectConcept
   }
 

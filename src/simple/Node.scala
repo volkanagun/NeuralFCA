@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 class Node(
             val id: Int,
-            val intent: CvaModel,
+            var intent: CvaModel,
             var extent: Set[Instance] = Set.empty[Instance]
           ) {
 
@@ -46,6 +46,12 @@ class Node(
     }
   }
 
+  
+  def fit(): Unit = {
+    val (projection, commonVector) = CVAUtil.compute(extent.map(_.attributes).toArray)
+    this.intent = CvaModel(commonVector, projection, radius = 0.0)
+     
+  }
 
   def intersect(node: Node):Node = {
     val symbolics = node.extent ++ (extent)
