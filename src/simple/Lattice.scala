@@ -36,7 +36,7 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
     val model = cva.fit_cva(mutable.Iterable(instance.attributes))
     Node(0, model, instance)
   }
-  
+
   private def createNode(
                           intent: CvaModel,
                           extent: Set[Instance]
@@ -233,7 +233,7 @@ class Lattice(val dim:Int = 300, val ratio:Float=0.7, val threshold:Float = 0.6)
       findCanonicalGenerator(intent, generator)
 
     // Step 2: existing exact concept?
-    if (canonicalGenerator.intent == intent) {
+    if (canonicalGenerator == intent) {
       return canonicalGenerator
     }
 

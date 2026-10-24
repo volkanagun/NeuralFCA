@@ -38,11 +38,11 @@ class Node(
   }
 
   def subset_of(node: Node, ratio: Float, threshold: Float): Boolean = {
-    size > node.size && {
-      val count = node.extent.count(instance => {
-        classifies(instance, threshold)
+    size <= node.size && {
+      val count = extent.count(instance => {
+        node.classifies(instance, threshold)
       })
-      count.toFloat / node.size >= ratio
+      (count.toFloat / size) >= ratio
     }
   }
 
@@ -54,6 +54,7 @@ class Node(
     Node(0, provisional, symbolics)
   }
   def classifies(instance: Instance, threshold: Float): Boolean = {
-    intent.distance(instance.attributes) <= threshold
+    val distance = intent.distance(instance.attributes)
+    distance <= threshold
   }
 }

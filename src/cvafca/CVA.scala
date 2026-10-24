@@ -19,6 +19,8 @@ final case class CvaModel(
                            radius: Double
                          ){
 
+  override def equals(obj: Any): Boolean = obj.asInstanceOf[CvaModel].commonVector == commonVector
+
   def project(x: Tensor[BFloat16]): Tensor[BFloat16] =
     projection.matmul(x.flatten).reshape(x.shape *)
 
