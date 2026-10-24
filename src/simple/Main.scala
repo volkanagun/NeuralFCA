@@ -8,7 +8,7 @@ class Main {
   def train(
              embeddingFilename: String,
              start: Int = 0,
-             limit: Int = 1000,
+             limit: Int = 20,
              dim: Int = 300,
              beamWidth: Int = 64,
              maxVisits: Int = 1024,
@@ -17,7 +17,7 @@ class Main {
            ): Lattice = {
     org.bytedeco.pytorch.global.torch.set_num_threads(1)
     val dataset = new cvafca.CVADataset(size = 24, start = start, limit = limit)
-    val lattice = new Lattice(dim = dim, 0.2, 0.85)
+    val lattice = new Lattice(dim = dim, 0.2, 0.95)
     if Files.exists(Paths.get(checkpointFilename)) then
       lattice.load(checkpointFilename)
     val startedAt = System.nanoTime()

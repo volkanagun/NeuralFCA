@@ -13,6 +13,8 @@ class Node(
 
   def this(id:Int, intent:CvaModel, instance: Instance) = this(id, intent, Set(instance))
 
+  
+  val extentID = instanceID() 
   // More general concepts (immediate upper neighbors)
   val parents: mutable.Set[Node] =
     mutable.LinkedHashSet.empty[Node]
@@ -32,6 +34,14 @@ class Node(
   def size = extent.size
   def common = intent.commonVector
 
+  def instanceID(): Int = {
+    extent.toArray.sortBy(_.id)
+      .foldRight[Int](17) { case (item, main) => {
+        main * 7 + item.id.hashCode
+      }
+      }
+  }
+  
   override def equals(node: Any): Boolean = {
     val obj = node.asInstanceOf[Node]
     obj.size == size && obj.extent.forall(instance=> extent.contains(instance))

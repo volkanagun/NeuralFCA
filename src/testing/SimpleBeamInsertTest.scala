@@ -95,6 +95,7 @@ object SimpleBeamInsertTest:
       assert(loadingLog.contains("Loading lattice instances: 3/3 (100%)"))
       assert(loadingLog.contains("Loading lattice concepts: 5/5 (100%)"))
       assert(loadingLog.contains("Loading lattice linking concepts: 5/5 (100%)"))
+      assert(loadingLog.contains("Loading lattice extent index: 5/5 (100%)"))
       assert(loadingLog.contains("Loaded lattice checkpoint: 3 instances, 5 concepts"))
       assert(restored.getInstances.map(_.id) == trained.getInstances.map(_.id))
       assert(restored.getNodes.size == trained.getNodes.size)
@@ -113,7 +114,7 @@ object SimpleBeamInsertTest:
 
       Files.writeString(input, "four 0.2 0\n", StandardOpenOption.APPEND)
       val resumed = Console.withOut(new PrintStream(new ByteArrayOutputStream())) {
-        new Main().train(input.toString, limit = 4, dim = 2,
+        new Main().train(input.toString, start = 3, limit = 1, dim = 2,
           beamWidth = 2, maxVisits = 4, checkpointFilename = checkpoint.toString,
           maxParents = 1)
       }
