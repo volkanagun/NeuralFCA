@@ -8,16 +8,16 @@ class Main {
   def train(
              embeddingFilename: String,
              start: Int = 0,
-             limit: Int = 20,
+             limit: Int = Int.MaxValue,
              dim: Int = 300,
              beamWidth: Int = 64,
              maxVisits: Int = 1024,
              checkpointFilename: String = "resources/binary/simple-lattice.bin",
-             maxParents: Int = 4
+             maxParents: Int = 6
            ): Lattice = {
     org.bytedeco.pytorch.global.torch.set_num_threads(1)
     val dataset = new cvafca.CVADataset(size = 24, start = start, limit = limit)
-    val lattice = new Lattice(dim = dim, 0.2, 0.95)
+    val lattice = new Lattice(dim = dim, 0.2, 0.80)
     if Files.exists(Paths.get(checkpointFilename)) then
       lattice.load(checkpointFilename)
     val startedAt = System.nanoTime()

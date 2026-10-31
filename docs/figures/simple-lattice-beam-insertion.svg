@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1110" viewBox="0 0 1500 1110" role="img" aria-labelledby="title description">
+  <title id="title">Beam insertion in simple.Lattice</title>
+  <desc id="description">Before inserting c, object concepts a and b each point to the bottom concept. The insertion scores candidates, selects a, creates the c object concept and common a,c concept, then connects them. After insertion, c points to bottom and the common concept points to both a and c. The b branch remains connected to bottom.</desc>
+  <defs>
+    <style>
+      text { font-family: Inter, "DejaVu Sans", Arial, sans-serif; fill: #1c2a41; }
+      .title { font-size: 34px; font-weight: 700; }
+      .subtitle { font-size: 17px; fill: #596a81; }
+      .panel { fill: white; stroke: #dce4ed; stroke-width: 2; }
+      .panel-title { font-size: 23px; font-weight: 700; }
+      .panel-subtitle { font-size: 16px; fill: #66778f; }
+      .edge { fill: none; stroke: #69788e; stroke-width: 2.7; stroke-linecap: round; stroke-linejoin: round; }
+      .edge-head { fill: #69788e; }
+      .old { fill: #f8fafc; stroke: #a7b7ca; stroke-width: 2.5; }
+      .new { fill: #fff3e6; stroke: #e48a3d; stroke-width: 3; }
+      .bottom { fill: #eaf1fa; stroke: #6a8bb9; stroke-width: 2.5; }
+      .node-title { font-size: 19px; font-weight: 700; text-anchor: middle; }
+      .node-detail { font-size: 14px; fill: #5b6c83; text-anchor: middle; }
+      .node-new-detail { font-size: 14px; fill: #9a5a26; text-anchor: middle; }
+      .note { font-size: 15px; fill: #415674; }
+      .footer { font-size: 15px; fill: #5c6c81; }
+      .steps-title { font-size: 23px; font-weight: 700; }
+      .step-card { fill: white; stroke: #dce4ed; stroke-width: 2; }
+      .card-number { fill: #315fba; }
+      .card-number-text { fill: white; font-size: 17px; font-weight: 700; text-anchor: middle; }
+      .card-title { font-size: 18px; font-weight: 700; }
+      .card-body { font-size: 15px; fill: #52647c; }
+    </style>
+  </defs>
+
+  <rect width="1500" height="1110" fill="#f4f7fb"/>
+  <text class="title" x="60" y="72">Beam insertion in simple.Lattice</text>
+  <text class="subtitle" x="60" y="109">SimpleBeamInsertTest · a = (0, 0) · b = (20, 0) · c = (0.1, 0) · threshold = 0.6 · maxParents = 1</text>
+
+  <rect class="panel" x="60" y="148" width="625" height="592" rx="20"/>
+  <text class="panel-title" x="95" y="202">Before inserting c</text>
+  <text class="panel-subtitle" x="95" y="239">Two separate object concepts</text>
+
+  <!-- Existing graph: C1 → C0 and C2 → C0. -->
+  <path class="edge" d="M 241 400 L 327 542"/>
+  <path class="edge" d="M 506 400 L 414 542"/>
+  <polygon class="edge-head" points="327,542 317,535 325,529"/>
+  <polygon class="edge-head" points="414,542 416,529 425,535"/>
+  <rect class="old" x="134" y="318" width="190" height="82" rx="14"/>
+  <text class="node-title" x="229" y="350">C1 · {a}</text>
+  <text class="node-detail" x="229" y="376">object concept</text>
+  <rect class="old" x="413" y="318" width="190" height="82" rx="14"/>
+  <text class="node-title" x="508" y="350">C2 · {b}</text>
+  <text class="node-detail" x="508" y="376">object concept</text>
+  <rect class="bottom" x="276" y="550" width="190" height="82" rx="14"/>
+  <text class="node-title" x="371" y="582">C0 · {}</text>
+  <text class="node-detail" x="371" y="608">bottom concept</text>
+  <text class="note" x="95" y="695">Each object points to bottom.</text>
+
+  <text x="750" y="360" font-size="17" font-weight="700" fill="#315fba" text-anchor="middle">Insert c</text>
+  <text x="750" y="390" font-size="14" fill="#5c6c81" text-anchor="middle">C1 selected</text>
+  <path d="M 708 423 L 789 423" fill="none" stroke="#3669c9" stroke-width="3.5"/>
+  <polygon points="789,423 776,416 776,430" fill="#3669c9"/>
+
+  <rect class="panel" x="815" y="148" width="625" height="592" rx="20"/>
+  <text class="panel-title" x="850" y="202">After inserting c</text>
+  <text class="panel-subtitle" x="850" y="239">New object and common concept</text>
+
+  <!-- Result: C4 → C1,C3; C1,C2,C3 → C0. -->
+  <path class="edge" d="M 1021 359 L 978 423"/>
+  <path class="edge" d="M 1091 359 L 1154 423"/>
+  <path class="edge" d="M 964 506 L 1093 579"/>
+  <path class="edge" d="M 1168 506 L 1168 575"/>
+  <path class="edge" d="M 1406 386 L 1406 529 Q 1406 542 1393 548 L 1244 580"/>
+  <polygon class="edge-head" points="978,423 981,410 989,416"/>
+  <polygon class="edge-head" points="1154,423 1141,418 1149,411"/>
+  <polygon class="edge-head" points="1093,579 1080,577 1085,569"/>
+  <polygon class="edge-head" points="1168,575 1162,563 1174,563"/>
+  <polygon class="edge-head" points="1244,580 1255,571 1257,583"/>
+
+  <rect class="new" x="951" y="277" width="220" height="82" rx="14"/>
+  <text class="node-title" x="1061" y="309">C4 · {a, c}</text>
+  <text class="node-new-detail" x="1061" y="335">new common concept</text>
+  <rect class="old" x="1278" y="304" width="136" height="82" rx="14"/>
+  <text class="node-title" x="1346" y="336">C2 · {b}</text>
+  <text class="node-detail" x="1346" y="362">existing</text>
+  <rect class="old" x="866" y="424" width="190" height="82" rx="14"/>
+  <text class="node-title" x="961" y="456">C1 · {a}</text>
+  <text class="node-detail" x="961" y="482">existing</text>
+  <rect class="new" x="1074" y="424" width="190" height="82" rx="14"/>
+  <text class="node-title" x="1169" y="456">C3 · {c}</text>
+  <text class="node-new-detail" x="1169" y="482">new object concept</text>
+  <rect class="bottom" x="1074" y="585" width="190" height="82" rx="14"/>
+  <text class="node-title" x="1169" y="617">C0 · {}</text>
+  <text class="node-detail" x="1169" y="643">bottom concept</text>
+  <text class="note" x="850" y="695">C4 covers the a and c branches.</text>
+
+  <line x1="60" y1="779" x2="1440" y2="779" stroke="#dce4ed" stroke-width="2"/>
+  <rect class="new" x="62" y="801" width="27" height="24" rx="5"/>
+  <text class="footer" x="101" y="819">Created on insertion</text>
+  <rect class="old" x="296" y="801" width="27" height="24" rx="5"/>
+  <text class="footer" x="335" y="819">Existing concept</text>
+  <text class="footer" x="585" y="819">Arrows show parent-to-child links; labels show extents.</text>
+
+  <text class="steps-title" x="60" y="874">Insertion steps</text>
+  <rect class="step-card" x="60" y="895" width="330" height="178" rx="16"/>
+  <circle class="card-number" cx="92" cy="930" r="18"/>
+  <text class="card-number-text" x="92" y="936">1</text>
+  <text class="card-title" x="122" y="937">Score candidates</text>
+  <text class="card-body" x="86" y="977">Score c against C2 and C1.</text>
+  <text class="card-body" x="86" y="1005">Keep distances at most 0.6.</text>
+
+  <rect class="step-card" x="410" y="895" width="330" height="178" rx="16"/>
+  <circle class="card-number" cx="442" cy="930" r="18"/>
+  <text class="card-number-text" x="442" y="936">2</text>
+  <text class="card-title" x="472" y="937">Select parent</text>
+  <text class="card-body" x="436" y="977">C1 qualifies; C2 does not.</text>
+  <text class="card-body" x="436" y="1005">Keep C1 as the one parent.</text>
+
+  <rect class="step-card" x="760" y="895" width="330" height="178" rx="16"/>
+  <circle class="card-number" cx="792" cy="930" r="18"/>
+  <text class="card-number-text" x="792" y="936">3</text>
+  <text class="card-title" x="822" y="937">Create concepts</text>
+  <text class="card-body" x="786" y="977">C3 has extent {c}.</text>
+  <text class="card-body" x="786" y="1005">C4 has extent {a, c}.</text>
+  <text class="card-body" x="786" y="1033">Fit C4 from both objects.</text>
+
+  <rect class="step-card" x="1110" y="895" width="330" height="178" rx="16"/>
+  <circle class="card-number" cx="1142" cy="930" r="18"/>
+  <text class="card-number-text" x="1142" y="936">4</text>
+  <text class="card-title" x="1172" y="937">Add links</text>
+  <text class="card-body" x="1136" y="977">C4 connects to C1 and C3.</text>
+  <text class="card-body" x="1136" y="1005">C3 connects to C0.</text>
+  <text class="card-body" x="1136" y="1033">Existing links remain.</text>
+</svg>

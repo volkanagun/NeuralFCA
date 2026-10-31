@@ -3,15 +3,15 @@ package simple
 import concept.CVAUtil
 
 class Instance(
-                val id: String,
+                val symbol: String,
                 val attributes: torch.Tensor[torch.BFloat16]
               ) {
 
   override def equals(instance: Any): Boolean = {
     val obj = instance.asInstanceOf[Instance]
-    id == obj.id
+    symbol == obj.symbol
   }
 
   override def toString: String =
-    s"$id"
+    s"$symbol"
 }

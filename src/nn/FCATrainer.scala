@@ -1,11 +1,13 @@
 package nn
 
-import cvafca.{CVA, CVADataset, Lattice, Node}
+
 import org.bytedeco.javacpp.PointerScope
+import simple.{Lattice, Node}
 import torch.{Float32, Tensor}
 
 import java.io.{BufferedInputStream, DataInputStream, FileInputStream}
 import java.nio.file.{AtomicMoveNotSupportedException, Files, Path, Paths, StandardCopyOption}
+import scala.collection.mutable
 import scala.util.Using
 import scala.util.control.NonFatal
 
@@ -33,7 +35,9 @@ class FCATrainer(
                   val randomSeed: Long = 0L,
                   val device: torch.Device = torch.Device.CUDA,
                   val progressEvery: Int = 10_000,
-                  val modelFilename: String = "resources/models/fca-network.pt"
+                  val modelFilename: String = "resources/models/fca-network.pt",
+                  val maxBatchSetRows: Int = 32768,
+                  val maxCandidatePairs: Int = 200000
                 ) {
 
   require(hiddenDim > 0)
@@ -50,6 +54,8 @@ class FCATrainer(
   require(huberDelta > 0.0f)
   require(maxTargetAbs > 0.0)
   require(maxExtentSize >= 2)
+  require(maxBatchSetRows >= 2)
+  require(maxCandidatePairs > 0)
   require(maxPairRepeatsPerEpoch > 0)
   require(batchSize > 0)
   require(samplesPerEpoch > 0L)
@@ -57,27 +63,22 @@ class FCATrainer(
   require(modelFilename.nonEmpty)
   require(device.device != torch.DeviceType.CUDA || torch.cuda.isAvailable, "CUDA is not available")
 
-  private val FileMagic = 0x43564146
+  private val FileMagic = 0x534C4154
 
   /** Reads only the checkpoint header so input and common-vector dimensions may differ. */
   private def latticeDimension(filename: String): Int =
     Using.resource(new DataInputStream(new BufferedInputStream(new FileInputStream(filename)))) { input =>
       val magic = input.readInt()
-      require(magic == FileMagic, s"Not a CVA-FCA lattice file: $filename")
+      require(magic == FileMagic, s"Not a simple lattice checkpoint: $filename")
       val version = input.readInt()
-      require(version == 1 || version == 2, s"Unsupported lattice file version: $version")
+      require(version >= 1 && version <= 3, s"Unsupported lattice file version: $version")
       val dimension = input.readInt()
       require(dimension > 0, s"Invalid lattice dimension: $dimension")
       dimension
     }
 
-  private def extentVectors(
-                             node: Node,
-                             embeddings: Map[String, Tensor[torch.BFloat16]]
-                           ): Option[Seq[Tensor[torch.BFloat16]]] =
-    val vectors = node.instancesIterator.flatMap(instance => embeddings.get(instance.symbol)).toArray
-    if vectors.length != node.size || vectors.isEmpty then None
-    else Some(vectors.toSeq)
+  private def extentVectors(node: Node): Seq[Tensor[torch.BFloat16]] =
+    node.extent.iterator.map(_.attributes).toVector
 
   /** Clips gradients without passing a potentially stale TensorVector through JNI. */
   private def clipGradientNorm(network: FCANetwork): Double =
@@ -145,18 +146,15 @@ class FCATrainer(
   /**
    * Loads the FCA checkpoint and randomly samples child-ancestor training pairs.
    *
-   * x/y contain the child/ancestor symbolic extents resolved through the embedding
-   * dictionary. x_cva/y_cva contain the corresponding stored common vectors.
+   * x/y use the instance vectors stored in the lattice checkpoint.
+   * x_cva/y_cva contain the corresponding stored common vectors.
    */
   def train(filename:String): FCANetwork = {
-    // Keep the complete dictionary in host memory and transfer only the current
-    // batch. This avoids consuming GPU memory in proportion to vocabulary size.
-    val embeddings = new CVADataset().readEmbeddingMap(embeddingFilename, device)
-    require(embeddings.nonEmpty, s"No embeddings found in $embeddingFilename")
-    val embeddingDim = Math.toIntExact(embeddings.head._2.numel)
-
     val commonVectorDim = latticeDimension(filename)
-    val lattice = new Lattice(new CVA(commonVectorDim)).load(filename)
+    val nodes = new Lattice(commonVectorDim).loadForTraining(filename).getNodes
+    val embeddingDim = nodes.iterator.flatMap(_.extent.iterator)
+      .map(instance => Math.toIntExact(instance.attributes.numel))
+      .nextOption().getOrElse(throw new IllegalArgumentException("The lattice has no instances to train"))
 
     def newNetwork(): FCANetwork =
       new FCANetwork(
@@ -169,65 +167,66 @@ class FCATrainer(
         huberDelta = huberDelta
       )
 
-    val nodesById = lattice.nodes.iterator.map(node => node.id -> node).toMap
-
-
-    def getParents(child:Node, depth:Int = 0):Vector[Node]={
-      if depth > 5 then return Vector()
-      else {
-        val parents = child.parents.map(id=> nodesById(id))
-          .filter(p => p.size >= 2)
-          .toVector
-        val children = parents.flatMap(p => getChildren(p, depth+1))
-        parents ++ parents.flatMap(p=> {getParents(p, depth+1)}) ++ children
-      }
-    }
-
-    def getChildren(child:Node, depth:Int = 0):Vector[Node]={
-      if depth > 5 then return Vector()
-      else {
-        val children = child.children.map(id=> nodesById(id))
-          .filter(p => p.size >= 2)
-          .toVector
-        val parents = children.flatMap(p => getParents(p, depth+1))
-        children ++ children.flatMap(p=> {getChildren(p, depth+1)}) ++ parents
-      }
-    }
-
-    /** Parents through great-grandparents, with each ancestor included once. */
-    def trainingAncestors(child: Node): Vector[Node] =
-
-      val parents = getParents(child)
-      val children = getChildren(child)
-      parents++children
-
+    val safeTargets = mutable.HashMap.empty[Int, Boolean]
     def targetVectorIsSafe(node: Node): Boolean =
-      val values = numeric.BFloatTensors.toArray(node.commonVector)
-      values.nonEmpty && values.forall(value => value.isFinite && math.abs(value.toDouble) <= maxTargetAbs)
+      safeTargets.getOrElseUpdate(node.id, {
+        val values = numeric.BFloatTensors.toArray(node.intent.commonVector)
+        values.nonEmpty && values.forall(value => value.isFinite && math.abs(value.toDouble) <= maxTargetAbs)
+      })
 
     def pairIsSafe(child: Node, ancestor: Node): Boolean =
-      child.size <= maxExtentSize &&
-        ancestor.size <= maxExtentSize &&
+      child.size > 0 && child.size <= maxExtentSize &&
+        ancestor.size > 0 && ancestor.size <= maxExtentSize &&
+        child.size.toLong + ancestor.size.toLong <= maxBatchSetRows.toLong &&
         targetVectorIsSafe(child) &&
         targetVectorIsSafe(ancestor)
 
-    val rawCandidatePairs = lattice.nodes.iterator.flatMap { child =>
-      trainingAncestors(child).iterator.map(ancestor => (child, ancestor))
-    }.toVector
-    val candidatePairs = rawCandidatePairs.filter(pair => pairIsSafe(pair._1, pair._2))
-    val filteredPairCount = rawCandidatePairs.size - candidatePairs.size
+    // Walk upward only, visiting each ancestor once per child. Keep a uniform
+    // bounded reservoir so the candidate list cannot grow with graph density.
+    val random = new java.util.Random(randomSeed)
+    val reservoir = mutable.ArrayBuffer.empty[(Node, Node)]
+    var eligiblePairCount = 0L
+    var filteredPairCount = 0L
+    nodes.foreach { child =>
+      if child.size > 0 && child.size <= maxExtentSize then {
+        val visited = mutable.HashSet(child.id)
+        var frontier = Vector(child)
+        var depth = 0
+        while depth < 5 && frontier.nonEmpty do
+          val next = mutable.ArrayBuffer.empty[Node]
+          frontier.foreach { current =>
+            current.parents.foreach { ancestor =>
+              if visited.add(ancestor.id) then {
+                if pairIsSafe(child, ancestor) then {
+                  eligiblePairCount += 1
+                  val pair = (child, ancestor)
+                  if reservoir.size < maxCandidatePairs then reservoir += pair
+                  else {
+                    val slot = random.nextLong(eligiblePairCount)
+                    if slot < maxCandidatePairs then reservoir(slot.toInt) = pair
+                  }
+                } else filteredPairCount += 1
+                if ancestor.size <= maxExtentSize then next += ancestor
+              }
+            }
+          }
+          frontier = next.toVector
+          depth += 1
+      }
+    }
+    val candidatePairs = reservoir.toVector
     require(candidatePairs.nonEmpty, "The lattice has no child-ancestor pairs to train")
     val candidatesByShape = candidatePairs.groupBy(pair => (pair._1.size, pair._2.size))
-    val validationPairs = candidatesByShape.values.maxBy(_.size).take(math.min(batchSize, 256)).toVector
+    val validationBucket = candidatesByShape.values.maxBy(_.size)
+    val validationRows = validationBucket.head._1.size + validationBucket.head._2.size
+    val validationBatchSize = math.min(math.min(batchSize, 256), maxBatchSetRows / validationRows)
+    val validationPairs = validationBucket.take(validationBatchSize)
     require(validationPairs.nonEmpty, "The lattice has no same-shape validation pairs")
 
     def lossValueFor(network: FCANetwork, pairs: Seq[(Node, Node)]): Option[Double] =
       Using.resource(new PointerScope()) { _ =>
-        val resolved = pairs.flatMap { case (child, ancestor) =>
-          for
-            childExtent <- extentVectors(child, embeddings)
-            ancestorExtent <- extentVectors(ancestor, embeddings)
-          yield (child, ancestor, childExtent, ancestorExtent)
+        val resolved = pairs.map { case (child, ancestor) =>
+          (child, ancestor, extentVectors(child), extentVectors(ancestor))
         }
         if resolved.isEmpty then None
         else
@@ -236,8 +235,8 @@ class FCATrainer(
           try
             val x = torch.stack(resolved.map(sample => torch.stack(sample._3))).to(device, torch.float32)
             val y = torch.stack(resolved.map(sample => torch.stack(sample._4))).to(device, torch.float32)
-            val childCommon = torch.stack(resolved.map(_._1.commonVector)).to(device, torch.float32)
-            val ancestorCommon = torch.stack(resolved.map(_._2.commonVector)).to(device, torch.float32)
+            val childCommon = torch.stack(resolved.map(_._1.intent.commonVector)).to(device, torch.float32)
+            val ancestorCommon = torch.stack(resolved.map(_._2.intent.commonVector)).to(device, torch.float32)
             Some(network(x, y, childCommon, ancestorCommon).item.asInstanceOf[Number].doubleValue())
           finally
             network.train(wasTraining)
@@ -295,10 +294,7 @@ class FCATrainer(
     val epochSampleLimit = Math.multiplyExact(candidatePairs.size.toLong, maxPairRepeatsPerEpoch.toLong)
     val effectiveSamplesPerEpoch = math.min(samplesPerEpoch, epochSampleLimit)
     val totalPairs = Math.multiplyExact(effectiveSamplesPerEpoch, epochs.toLong)
-    val random = new scala.util.Random(randomSeed)
-
     var trainedPairs = 0L
-    var skippedPairs = 0L
     var nonFinitePairs = 0L
     var processedPairs = 0L
     var lastLoss = Double.NaN
@@ -318,16 +314,18 @@ class FCATrainer(
         )
       val percentage = if totalPairs == 0 then 100.0 else processedPairs * 100.0 / totalPairs
       println(
-        f"FCA network: device=$device%s | batch size=$batchSize%d | epoch=$epoch%d/$epochs%d | " +
+        f"FCA network: device=$device%s | batch cap=$batchSize%d | max set rows=$maxBatchSetRows%d | " +
+          f"epoch=$epoch%d/$epochs%d | " +
           f"progress=$processedPairs%,d/$totalPairs%,d ($percentage%6.2f%%) | trained=$trainedPairs%,d | " +
-          f"skipped=$skippedPairs%,d | nonfinite=$nonFinitePairs%,d | loss=$lastLoss%.12f | " +
+          f"nonfinite=$nonFinitePairs%,d | loss=$lastLoss%.12f | " +
           f"gradient norm before clipping=$lastGradNorm%.6f | max parameter=$parameterMaximum%.6f"
       )
 
     network.train()
     println(
       s"FCA network: randomly sampling $effectiveSamplesPerEpoch child-ancestor pairs per epoch " +
-        s"from ${candidatePairs.size} candidates (filtered $filteredPairCount unsafe pairs, " +
+        s"from ${candidatePairs.size} retained candidates of $eligiblePairCount eligible pairs " +
+        s"(filtered $filteredPairCount unsafe pairs, " +
         s"max repeats per pair=$maxPairRepeatsPerEpoch, seed=$randomSeed)."
     )
     try
@@ -340,20 +338,16 @@ class FCATrainer(
         )
         def trainBatch(pairs: Seq[(Node, Node)]): Unit =
           Using.resource(new PointerScope()) { _ =>
-            val resolved = pairs.flatMap { case (child, ancestor) =>
-              for
-                childExtent <- extentVectors(child, embeddings)
-                ancestorExtent <- extentVectors(ancestor, embeddings)
-              yield (child, ancestor, childExtent, ancestorExtent)
+            val resolved = pairs.map { case (child, ancestor) =>
+              (child, ancestor, extentVectors(child), extentVectors(ancestor))
             }
-            skippedPairs += pairs.size - resolved.size
             processedPairs += pairs.size
 
             if resolved.nonEmpty then
               val x = torch.stack(resolved.map(sample => torch.stack(sample._3))).to(device, torch.float32)
               val y = torch.stack(resolved.map(sample => torch.stack(sample._4))).to(device, torch.float32)
-              val childCommon = torch.stack(resolved.map(_._1.commonVector)).to(device, torch.float32)
-              val ancestorCommon = torch.stack(resolved.map(_._2.commonVector)).to(device, torch.float32)
+              val childCommon = torch.stack(resolved.map(_._1.intent.commonVector)).to(device, torch.float32)
+              val ancestorCommon = torch.stack(resolved.map(_._2.intent.commonVector)).to(device, torch.float32)
               optimizer.zeroGrad()
               val loss = network(x, y, childCommon, ancestorCommon)
               val lossValue = loss.item.asInstanceOf[Number].doubleValue()
@@ -407,7 +401,10 @@ class FCATrainer(
           // full batches instead of flushing thousands of undersized buckets.
           val seedPair = candidatePairs(random.nextInt(candidatePairs.size))
           val bucket = candidatesByShape((seedPair._1.size, seedPair._2.size))
-          val currentBatchSize = math.min(batchSize.toLong, effectiveSamplesPerEpoch - sampledPairs).toInt
+          val rowsPerPair = seedPair._1.size + seedPair._2.size
+          val rowLimitedBatchSize = math.min(batchSize, maxBatchSetRows / rowsPerPair)
+          val currentBatchSize = math.min(rowLimitedBatchSize.toLong,
+            effectiveSamplesPerEpoch - sampledPairs).toInt
           val batch = Vector.fill(currentBatchSize)(bucket(random.nextInt(bucket.size)))
           trainBatch(batch)
           sampledPairs += currentBatchSize
@@ -421,8 +418,7 @@ class FCATrainer(
 
     val savedModel = saveModel(network)
     println(
-      s"FCA network training complete: $trainedPairs sampled child-ancestor pairs trained, " +
-        s"$skippedPairs skipped because an extent symbol was absent from the embedding dictionary. " +
+      s"FCA network training complete: $trainedPairs sampled child-ancestor pairs trained. " +
         s"Model saved to $savedModel"
     )
     network
@@ -435,6 +431,6 @@ object FCATrainer {
       epochs = 10,
       progressEvery = 5000,
       modelFilename = "resources/models/fca-network.pt"
-    ).train("resources/binary/fca-cva.bin")
+    ).train("resources/binary/simple-lattice.bin")
   }
 }

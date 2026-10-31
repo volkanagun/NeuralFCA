@@ -1,6 +1,6 @@
 package simple
 
-import java.io.{ByteArrayOutputStream, PrintStream}
+import java.io.{ByteArrayOutputStream, PrintStream, RandomAccessFile}
 import java.nio.file.Files
 import java.nio.file.StandardOpenOption
 
@@ -19,13 +19,15 @@ object SimpleBeamInsertTest:
     assert(lattice.getNodes.exists(_ eq common))
     assert(common.id != a.id && common.id != c.id)
     assert(common.children.contains(a) && common.children.contains(c))
-    assert(common.extent.map(_.id) == Set("a", "c"))
-    assert(a.extent.map(_.id) == Set("a"))
+    assert(common.extent.map(_.symbol) == Set("a", "c"))
+    assert(a.extent.map(_.symbol) == Set("a"))
     assert(c.children.contains(lattice.bottom))
     assert(lattice.getInstances.size == 3)
     assert(lattice.getNodes.size == 5)
     assert(lattice.beamInsert(sample("a", 40f), beamWidth = 1, maxVisits = 1) eq a)
     assert(lattice.getInstances.size == 3 && lattice.getNodes.size == 5)
+    assert(numeric.BFloatTensors.toArray(lattice.getInstances.find(_.symbol == "a").get.attributes).head == 0f)
+    assert(lattice.getNodes.forall(node => !node.children.contains(node)))
     lattice.beamInsert(sample("alias", 0f), beamWidth = 2, maxVisits = 4, maxParents = 1)
     assert(lattice.getInstances.size == 4 && lattice.getNodes.size == 7)
     lattice.beamInsert(sample("far", 50f), beamWidth = 1, maxVisits = 1)
@@ -34,7 +36,7 @@ object SimpleBeamInsertTest:
       upper.children.foreach { lower =>
         assert(lattice.getNodes.exists(_ eq lower))
         assert(lower.parents.exists(_ eq upper))
-        assert(lower.extent.map(_.id).subsetOf(upper.extent.map(_.id)))
+        assert(lower.extent.map(_.symbol).subsetOf(upper.extent.map(_.symbol)))
       }
     }
 
@@ -45,7 +47,7 @@ object SimpleBeamInsertTest:
     assert(right.intent.distance(middle.attributes) < left.intent.distance(middle.attributes))
     val inserted = multiParent.beamInsert(middle, beamWidth = 4, maxVisits = 8, maxParents = 2)
     assert(inserted.parents.size == 2)
-    assert(inserted.parents.map(_.extent.map(_.id)).toSet ==
+    assert(inserted.parents.map(_.extent.map(_.symbol)).toSet ==
       Set(Set("left", "middle"), Set("right", "middle")))
     assert(inserted.parents.forall(multiParent.getNodes.contains))
     assert(left.parents.exists(_.children.contains(inserted)))
@@ -57,13 +59,21 @@ object SimpleBeamInsertTest:
     val cappedObject = capped.beamInsert(sample("middle", 1.4f),
       beamWidth = 4, maxVisits = 8, maxParents = 1)
     assert(cappedObject.parents.size == 1)
-    assert(cappedObject.parents.head.extent.map(_.id) == Set("right", "middle"))
+    assert(cappedObject.parents.head.extent.map(_.symbol) == Set("right", "middle"))
 
     val defaultLattice = new Lattice(dim = 2)
     defaultLattice.addInstance(sample("first", 0f))
     defaultLattice.addInstance(sample("second", 20f))
     assert(defaultLattice.getInstances.size == 2)
     assert(defaultLattice.getNodes.size == 3)
+
+    val collidingIds = new Lattice(dim = 2)
+    val aa = collidingIds.beamInsert(sample("Aa", 0f))
+    val bb = collidingIds.beamInsert(sample("BB", 20f))
+    assert("Aa".hashCode == "BB".hashCode)
+    assert((aa ne bb) && aa.extent.map(_.symbol) == Set("Aa"))
+    assert(bb.extent.map(_.symbol) == Set("BB"))
+    assert(collidingIds.getNodes.size == 3)
 
     val recursive = new Lattice(dim = 2)
     recursive.addInstanceWithFastAddIntent(sample("old-first", 0f))
@@ -73,6 +83,7 @@ object SimpleBeamInsertTest:
     val input = Files.createTempFile("simple-beam-", ".txt")
     val checkpointDirectory = Files.createTempDirectory("simple-lattice-")
     val checkpoint = checkpointDirectory.resolve("checkpoint.bin")
+    val damagedCheckpoint = checkpointDirectory.resolve("damaged.bin")
     try
       Files.writeString(input, "one 0 0\ntwo 20 0\nthree 0.1 0\n")
       val output = new ByteArrayOutputStream()
@@ -97,11 +108,11 @@ object SimpleBeamInsertTest:
       assert(loadingLog.contains("Loading lattice linking concepts: 5/5 (100%)"))
       assert(loadingLog.contains("Loading lattice extent index: 5/5 (100%)"))
       assert(loadingLog.contains("Loaded lattice checkpoint: 3 instances, 5 concepts"))
-      assert(restored.getInstances.map(_.id) == trained.getInstances.map(_.id))
+      assert(restored.getInstances.map(_.symbol) == trained.getInstances.map(_.symbol))
       assert(restored.getNodes.size == trained.getNodes.size)
       trained.getNodes.zip(restored.getNodes).foreach { (before, after) =>
         assert(before.id == after.id)
-        assert(before.extent.map(_.id) == after.extent.map(_.id))
+        assert(before.extent.map(_.symbol) == after.extent.map(_.symbol))
         assert(before.children.map(_.id).toSet == after.children.map(_.id).toSet)
         assert(before.parents.map(_.id).toSet == after.parents.map(_.id).toSet)
         assert(numeric.BFloatTensors.toArray(before.intent.commonVector)
@@ -122,16 +133,43 @@ object SimpleBeamInsertTest:
       trained.beamInsert(sample("four", 0.2f), beamWidth = 2, maxVisits = 4,
         maxParents = 1)
       trained.getNodes.zip(resumed.getNodes).foreach { (expected, actual) =>
-        assert(expected.extent.map(_.id) == actual.extent.map(_.id))
+        assert(expected.extent.map(_.symbol) == actual.extent.map(_.symbol))
         assert(expected.children.map(_.id).toSet == actual.children.map(_.id).toSet)
         assert(numeric.BFloatTensors.toArray(expected.intent.commonVector)
           .sameElements(numeric.BFloatTensors.toArray(actual.intent.commonVector)))
       }
       assert(new Lattice(dim = 2, ratio = trained.ratio, threshold = trained.threshold)
         .load(checkpoint.toString).getInstances.size == 4)
+
+      val damaged = new Lattice(dim = 2)
+      val first = damaged.beamInsert(sample("first", 0f))
+      val second = damaged.beamInsert(sample("second", 20f))
+      first.children += first
+      first.children += second
+      damaged.save(damagedCheckpoint.toString)
+      val legacy = new RandomAccessFile(damagedCheckpoint.toFile, "rw")
+      try
+        legacy.seek(4)
+        legacy.writeInt(2)
+        legacy.seek(legacy.length())
+        legacy.writeInt(damaged.getNodes.size)
+        damaged.getNodes.foreach { node =>
+          legacy.writeInt(node.extentID)
+          legacy.writeInt(node.id)
+        }
+      finally legacy.close()
+      val repairOutput = new ByteArrayOutputStream()
+      val repaired = Console.withOut(new PrintStream(repairOutput)) {
+        new Lattice(dim = 2).load(damagedCheckpoint.toString)
+      }
+      assert(repairOutput.toString("UTF-8").contains("Skipped 2 invalid lattice links"))
+      assert(repaired.getNodes.forall(node =>
+        node.children.forall(child => (child ne node) &&
+          child.extent.map(_.symbol).subsetOf(node.extent.map(_.symbol)))))
     finally
       Files.deleteIfExists(input)
       Files.deleteIfExists(checkpoint)
+      Files.deleteIfExists(damagedCheckpoint)
       Files.deleteIfExists(checkpointDirectory)
 
     println("Simple beam insertion and training passed.")

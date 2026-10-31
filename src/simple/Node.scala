@@ -2,6 +2,7 @@ package simple
 
 import concept.CVAUtil
 import cvafca.CvaModel
+import torch.BFloat16
 
 import scala.collection.mutable
 
@@ -22,7 +23,9 @@ class Node(
   // More specific concepts (immediate lower neighbors)
   val children: mutable.Set[Node] =
     mutable.LinkedHashSet.empty[Node]
-
+  
+  def contains(symbol:String):Boolean = extent.exists(instance=> instance.symbol == symbol)
+  
   override def toString: String = {
 
     val i = intent.commonVector.toString
@@ -33,11 +36,12 @@ class Node(
 
   def size = extent.size
   def common = intent.commonVector
-
+  def symbols = extent.map(_.symbol)
+  def commonVector = intent.commonVector
   def instanceID(): Int = {
-    extent.toArray.sortBy(_.id)
+    extent.toArray.sortBy(_.symbol)
       .foldRight[Int](17) { case (item, main) => {
-        main * 7 + item.id.hashCode
+        main * 7 + item.symbol.hashCode
       }
       }
   }
@@ -73,4 +77,11 @@ class Node(
     val distance = intent.distance(instance.attributes)
     distance <= threshold
   }
+
+  def distance(attributes: torch.Tensor[BFloat16]): Double = {
+    val distance = intent.distance(attributes)
+    distance
+  }
+  
+  
 }

@@ -5,7 +5,7 @@ package simple
   */
 object SimpleInsertionComparisonTest:
   private def extentSignatures(lattice: Lattice): Set[Set[String]] =
-    lattice.getNodes.iterator.map(_.extent.iterator.map(_.id).toSet).toSet
+    lattice.getNodes.iterator.map(_.extent.iterator.map(_.symbol).toSet).toSet
 
   private def edgeCount(lattice: Lattice): Int =
     lattice.getNodes.iterator.map(_.children.size).sum
@@ -47,17 +47,17 @@ object SimpleInsertionComparisonTest:
       val beamConcept = beam.beamInsert(instance)
       beamNanos += System.nanoTime() - beamStarted
 
-      assert(fastConcept.extent.exists(_.id == instance.id))
-      assert(beamConcept.extent.exists(_.id == instance.id))
+      assert(fastConcept.extent.exists(_.symbol == instance.symbol))
+      assert(beamConcept.extent.exists(_.symbol == instance.symbol))
       if (index + 1) % 5 == 0 || index + 1 == input.size then
         println(s"Compared ${index + 1}/$count embeddings")
     }
 
-    assert(fast.getInstances.map(_.id) == input.map(_.id))
-    assert(beam.getInstances.map(_.id) == input.map(_.id))
+    assert(fast.getInstances.map(_.symbol) == input.map(_.symbol))
+    assert(beam.getInstances.map(_.symbol) == input.map(_.symbol))
     assertReciprocalLinks(fast)
     assertReciprocalLinks(beam)
-    assert(beam.getNodes.size == input.map(_.id).distinct.size + 1)
+    assert(beam.getNodes.size == input.map(_.symbol).distinct.size + 1)
     val commonExtents = extentSignatures(fast).intersect(extentSignatures(beam)).size
     println(
       f"FastAddIntent: ${fast.getNodes.size} concepts, ${edgeCount(fast)} links, " +
