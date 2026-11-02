@@ -21,6 +21,10 @@
 
     <repositories>
         <repository>
+            <id>zemberek-repo</id>
+            <url>https://raw.githubusercontent.com/ahmetaa/maven-repo/master</url>
+        </repository>
+        <repository>
             <id>sonatype-snapshots</id>
             <url>https://sonatype.org</url>
             <releases><enabled>false</enabled></releases>
@@ -46,6 +50,19 @@
             <groupId>dev.storch</groupId>
             <artifactId>core_3</artifactId>
             <version>0.0-2dfa388-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/resources/lib/core-assembly-0.0-SNAPSHOT.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>zemberek-nlp</groupId>
+            <artifactId>zemberek-tokenization</artifactId>
+            <version>0.17.1</version>
+        </dependency>
+        <dependency>
+            <groupId>zemberek-nlp</groupId>
+            <artifactId>zemberek-morphology</artifactId>
+            <version>0.17.1</version>
         </dependency>
 
 

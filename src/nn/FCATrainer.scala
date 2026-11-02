@@ -428,7 +428,7 @@ class FCATrainer(
 object FCATrainer {
   def main(args: Array[String]): Unit = {
     new FCATrainer(
-      epochs = 10,
+      epochs = 30,
       progressEvery = 5000,
       modelFilename = "resources/models/fca-network.pt"
     ).train("resources/binary/simple-lattice.bin")
