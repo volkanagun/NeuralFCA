@@ -64,7 +64,7 @@ class AttentionModel(sentenceFilename: String,
   }
 
 
-  def dataset(maxLines : Int = 100): Seq[Sentence] = {
+  def dataset(maxLines : Int = 100000): Seq[Sentence] = {
     Source.fromFile(sentenceFilename).getLines().flatMap(sentence => {
       val tokens = tokenize(sentence)
       val concept_seq = concepts(tokens)
