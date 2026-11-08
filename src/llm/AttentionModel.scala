@@ -1,6 +1,6 @@
 package llm
 
-import torch.{BFloat16, Device, Float32, Tensor, nn}
+import torch.{Device, Float32, Tensor, nn}
 
 import scala.io.Source
 
@@ -10,8 +10,18 @@ class AttentionModel(sentenceFilename: String,
 
   val dw = 300
   val dc = 300
-  val window = 5
-  private val projectionScale = (1.0 / math.sqrt(dim.toDouble)).toFloat
+  val window = 7 // Number of input tokens used to predict the following token.
+  val attentionWidth = 512
+  val attentionHeads = 8
+  val feedForwardWidth = 2048
+  private val headWidth = attentionWidth / attentionHeads
+  private val logitScale = 20.0f
+
+  private def projection(inputWidth: Int, outputWidth: Int): Tensor[Float32] =
+    torch.randn(Seq(inputWidth, outputWidth)) * (1.0 / math.sqrt(inputWidth.toDouble)).toFloat
+
+  private def normalizeRows(matrix: Tensor[Float32]): Tensor[Float32] =
+    matrix / torch.sqrt((matrix * matrix).sum(dim = 1, keepdim = true) + 1e-8f)
 
   val wordEmb: torch.Tensor[Float32] = registerParameter({
     val pretrainedRows = embeddingMap.iterator.map { case (token, vector) =>
@@ -20,7 +30,7 @@ class AttentionModel(sentenceFilename: String,
     val rows = (0 until vocabLength).map { row =>
       pretrainedRows.getOrElse(row, torch.randn(Seq(dim)))
     }
-    val matrix = torch.stack(rows)
+    val matrix = normalizeRows(torch.stack(rows))
     matrix.requiresGrad = true
     matrix
   }, n = "wordEmb")
@@ -30,145 +40,117 @@ class AttentionModel(sentenceFilename: String,
     val rows = (0 to conceptSize).map { row =>
       commonMap(row).flatten.to(dtype = torch.float32)
     }
-    val matrix = torch.stack(rows)
+    val matrix = normalizeRows(torch.stack(rows))
     matrix.requiresGrad = true
     matrix
   }, n = "conceptEmb")
 
-  // Q, K, V projections
-  val Wq = registerParameter(torch.randn(Seq(dim, dim)) * projectionScale, n = "Wq")
-  val Wk = registerParameter(torch.randn(Seq(dim, dim)) * projectionScale, n = "Wk")
-  val Wv = registerParameter(torch.randn(Seq(dim, dim)) * projectionScale, n = "Wv")
+  // Attend to each word's FCA concepts before attending across word positions.
+  val WconceptQuery = registerParameter(projection(dim, dim), n = "WconceptQuery")
+  val WconceptKey = registerParameter(projection(dim, dim), n = "WconceptKey")
+  val Win = registerParameter(projection(dim, attentionWidth), n = "Win")
+  val positionEmb = registerParameter(torch.randn(Seq(window, attentionWidth)) * 0.02f, n = "positionEmb")
 
-  // Candidate representation and activation
-  val Wc = registerParameter(torch.randn(Seq(dim, dim)) * projectionScale, n = "Wc")
-  val Wg = registerParameter(torch.randn(Seq(dim, 1)) * projectionScale, n = "Wg")
+  // Causal multi-head self-attention over the five observed words.
+  val Wq = registerParameter(projection(attentionWidth, attentionWidth), n = "Wq")
+  val Wk = registerParameter(projection(attentionWidth, attentionWidth), n = "Wk")
+  val Wv = registerParameter(projection(attentionWidth, attentionWidth), n = "Wv")
+  val Wc = registerParameter(projection(attentionWidth, attentionWidth), n = "Wc")
 
-  // Predict next-word embedding
-  val Wo = registerParameter(torch.randn(Seq(dim, dim)) * projectionScale, n = "Wo")
+  val Wff1 = registerParameter(projection(attentionWidth, feedForwardWidth), n = "Wff1")
+  val Wff2 = registerParameter(projection(feedForwardWidth, attentionWidth), n = "Wff2")
+  val Wo = registerParameter(projection(attentionWidth, dim), n = "Wo")
 
-  def oneHot(id: Int, size: Int): Tensor[Float32] = {
-    torch.Tensor(
-      (0 until size).map { i =>
-        if (i == id) 1.0f else 0.0f
-      }, device = device
-    )
-  }
+  private def rmsNorm(x: Tensor[Float32]): Tensor[Float32] =
+    x / torch.sqrt((x * x).mean(dim = 2, keepdim = true) + 1e-5f)
 
   def wordVector(word: Int): Tensor[Float32] = {
-    oneHot(word, vocabLength) matmul wordEmb
+    torch.select(wordEmb, 0, word)
   }
 
   def conceptVector(concept: Int): Tensor[Float32] = {
-    oneHot(concept, conceptSize + 1) matmul conceptEmb
+    torch.select(conceptEmb, 0, concept)
   }
 
 
-  def dataset(maxLines : Int = 100000): Seq[Sentence] = {
+  def dataset(startLines : Int = 0, maxLines : Int = 100000): Seq[Sentence] = {
     Source.fromFile(sentenceFilename).getLines().flatMap(sentence => {
       val tokens = tokenize(sentence)
-      val concept_seq = concepts(tokens)
+      val conceptSeq = concepts(tokens)
+      val sampleLength = window + 1
 
-      if (tokens.size >= window){
-        tokens.zipWithIndex.sliding(window, 1).map { windowSeq =>{
-          windowSeq.map((token, indice) => (token, concept_seq(indice)))
-        }}.map(windowSeq => Sentence(windowSeq.map(_._1), windowSeq.map(_._2)))
+      if (tokens.size >= sampleLength){
+        tokens.zip(conceptSeq).sliding(sampleLength, 1)
+          .filter(_.size == sampleLength)
+          .map(windowSeq => Sentence(windowSeq.map(_._1), windowSeq.map(_._2)))
       }
       else{
         Seq[Sentence]()
       }
 
-    }).take(maxLines).toSeq
+    }).zipWithIndex.filter((sentence, index)=> index > startLines).take(maxLines).map(_._1).toSeq
   }
 
   def target(input:Sentence):Int = {
     input.tokens.last
   }
 
-  def apply(input: Sentence): Tensor[Float32] = {
+  def apply(input: Sentence): Tensor[Float32] =
+    torch.squeeze(applyBatch(Seq(input)), 0)
 
-    // Flatten the concept candidates of the prefix.
-    // Each candidate keeps its associated word.
-    require(input.tokens.size >= 2, "Attention requires a prefix and a target word")
-    val prefix = input.tokens.dropRight(1).zip(input.concepts.dropRight(1))
-    val candidates = prefix.flatMap { case (word, concepts) =>
-      concepts.map(concept => (word, concept))
+  def applyBatch(inputs: Seq[Sentence]): Tensor[Float32] = {
+    require(inputs.nonEmpty, "A training batch must contain at least one sentence")
+    val predictions = predictEmbedding(inputs)
+    val normalizedPredictions = predictions /
+      torch.sqrt((predictions * predictions).sum(dim = 1, keepdim = true) + 1e-8f)
+    (normalizedPredictions matmul normalizeRows(wordEmb).t) * logitScale
+  }
+
+  private def predictEmbedding(inputs: Seq[Sentence]): Tensor[Float32] = {
+    inputs.foreach { input =>
+      require(input.tokens.size == window + 1, s"Attention requires $window input tokens and one target word")
+      require(input.concepts.size == input.tokens.size, "Tokens and concepts must align")
+      require(input.concepts.take(window).forall(_.nonEmpty), "Each input token needs at least one concept")
     }
-    val lastIndex = input.tokens.length - 2
+    val batchSize = inputs.size
+    val maxConcepts = inputs.flatMap(_.concepts.take(window)).map(_.size).max
+    val wordIds = inputs.flatMap(_.tokens.take(window))
+    val conceptRows = inputs.flatMap(_.concepts.take(window))
 
-    // Concepts belonging to the last observed word
-    // act as Queries.
-    val queryConcepts = input.concepts(lastIndex)
+    val wordIndices = torch.Tensor(wordIds).to(dtype = torch.int64, device = device)
+    val conceptIndices = torch.Tensor(conceptRows.flatMap(_.padTo(maxConcepts, 0)))
+      .to(dtype = torch.int64, device = device)
+    val conceptBias = torch.Tensor(conceptRows.flatMap(row =>
+      Seq.fill(row.size)(0.0f) ++ Seq.fill(maxConcepts - row.size)(Float.NegativeInfinity)
+    ), device = device).reshape(batchSize, window, maxConcepts)
 
-    // Q: concept embeddings
-    val Q = torch.stack(
-      queryConcepts.map { concept =>
-        conceptVector(concept) matmul Wq
-      }
-    )
+    val words = torch.indexSelect(wordEmb, 0, wordIndices).reshape(batchSize, window, dim)
+    val concepts = torch.indexSelect(conceptEmb, 0, conceptIndices).reshape(batchSize, window, maxConcepts, dim)
+    val conceptQueries = (words matmul WconceptQuery).unsqueeze(2)
+    val conceptKeys = concepts matmul WconceptKey
+    val conceptScores = torch.squeeze(conceptQueries matmul conceptKeys.transpose(2, 3), 2) /
+      math.sqrt(dim.toDouble).toFloat
+    val conceptWeights = torch.softmax[Float32, Float32](conceptScores + conceptBias, dim = 2, dtype = torch.float32)
+    val conceptContext = torch.squeeze(conceptWeights.unsqueeze(2) matmul concepts, 2)
 
-    // K: all candidate concept embeddings
-    val K = torch.stack(
-      candidates.map { case (_, concept) =>
-        conceptVector(concept) matmul Wk
-      }
-    )
+    val tokens = ((words + conceptContext) matmul Win) + positionEmb.unsqueeze(0)
+    def splitHeads(x: Tensor[Float32]): Tensor[Float32] =
+      x.reshape(batchSize, window, attentionHeads, headWidth).transpose(1, 2)
 
-    // V: corresponding word embeddings
-    val V = torch.stack(
-      candidates.map { case (word, _) =>
-        wordVector(word) matmul Wv
-      }
-    )
+    val Q = splitHeads(tokens matmul Wq)
+    val K = splitHeads(tokens matmul Wk)
+    val V = splitHeads(tokens matmul Wv)
+    val causalBias = torch.Tensor((0 until window).flatMap(query =>
+      (0 until window).map(key => if (key <= query) 0.0f else Float.NegativeInfinity)
+    ), device = device).reshape(1, 1, window, window)
+    val scores = (Q matmul K.transpose(2, 3)) / math.sqrt(headWidth.toDouble).toFloat
+    val weights = torch.softmax[Float32, Float32](scores + causalBias, dim = 3, dtype = torch.float32)
+    val attended = (weights matmul V).transpose(1, 2).reshape(batchSize, window, attentionWidth)
 
-    // -----------------------------------
-    // Concept Q/K attention
-    // -----------------------------------
-
-    val scores =
-      (Q matmul K.t) / math.sqrt(dim.toDouble).toFloat
-
-    val attention = torch.softmax[Float32, Float32](scores, dim = 1, dtype = torch.float32)
-
-    // Values contain word information.
-    val H = attention matmul V
-
-    // -----------------------------------
-    // Update contextual concept vectors
-    // -----------------------------------
-
-    val Z = torch.stack(
-      queryConcepts.map(conceptVector)
-    )
-
-    val updatedConcepts =
-      torch.tanh((H + Z) matmul Wc)
-
-    // -----------------------------------
-    // Learn concept activation weights
-    // -----------------------------------
-
-    val activationScores =
-      torch.squeeze(updatedConcepts matmul Wg, 1)
-
-    val beta =
-      torch.softmax[Float32, Float32](activationScores, dim = 0, dtype = torch.float32)
-
-    // Weighted contextual concept embedding
-    val context =
-      torch.squeeze(beta.unsqueeze(0) matmul updatedConcepts, 0)
-
-    // -----------------------------------
-    // Predict next-word embedding
-    // -----------------------------------
-
-    val predictedEmbedding = context matmul Wo
-
-    // Compare with every vocabulary embedding
-    val logits =
-      (predictedEmbedding matmul wordEmb.t) / math.sqrt(dim.toDouble).toFloat
-
-    logits
+    val hidden = rmsNorm(tokens + (attended matmul Wc))
+    val feedForward = torch.nn.functional.relu(hidden matmul Wff1) matmul Wff2
+    val finalState = rmsNorm(hidden + feedForward)
+    torch.select(finalState, 1, window - 1) matmul Wo
   }
 
 }

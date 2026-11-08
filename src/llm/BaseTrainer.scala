@@ -2,13 +2,22 @@ package llm
 
 import torch.Device
 import torch.nn.functional
-import torch.optim.Adam
+import torch.optim.AdamW
+import org.bytedeco.javacpp.PointerScope
 
 import java.nio.file.{AtomicMoveNotSupportedException, Files, Path, Paths, StandardCopyOption}
-import scala.util.Using
+import scala.util.{Random, Using}
 
 class BaseTrainer(val epocs:Int, val lrate:Float,
-                  val modelFilename: String = "resources/models/attention-model.bin") {
+                  val modelFilename: String = "resources/models/attention-model-causal-stable.bin",
+                  val batchSize: Int = 128, val startLines:Int = 100000, val maxLines:Int = 100000) {
+
+  require(epocs > 0, "Epoch count must be positive")
+  require(lrate > 0.0f, "Learning rate must be positive")
+  //require(lrate <= 0.0005f, "Learning rate above 0.0005 caused divergence in this model")
+  require(batchSize > 0, "Batch size must be positive")
+  require(maxLines > 0, "Sample limit must be positive")
+
   val sentenceFilename = "resources/sentences/sentences-tr.txt"
   val latticeFilename = "resources/binary/simple-lattice.bin"
   val embeddingFilename = "resources/embeddings/vectors.txt"
@@ -52,48 +61,74 @@ class BaseTrainer(val epocs:Int, val lrate:Float,
     if (Files.exists(Paths.get(modelFilename))) {
       println(s"Loaded neural model from ${loadModel()}")
     }
+
     attentionModel.to(device)
-    val optimizer = new Adam(attentionModel.parameters, lr = lrate.toDouble)
+    val optimizer = new AdamW(attentionModel.parameters, lr = lrate.toDouble, weightDecay = 0.01)
 
     println("Loading training samples...")
-    val dataset = attentionModel.dataset()
+    val dataset = attentionModel.dataset(startLines, maxLines)
     val totalSamples = dataset.size
     if (totalSamples == 0) {
       println("No training samples found.")
       return
     }
 
-    println(s"Training on $totalSamples samples for $epocs epochs.")
-    val progressEvery = math.max(1, math.min(5, totalSamples / 10))
+    val totalBatches = (totalSamples - 1) / batchSize + 1
+    val totalSteps = epocs.toLong * totalBatches
+    val warmupSteps = math.min(500L, math.max(1L, totalSteps / 20))
+
+    def learningRateAt(step: Long): Double = {
+      if (step <= warmupSteps) lrate.toDouble * step / warmupSteps
+      else {
+        val progress = (step - warmupSteps).toDouble / (totalSteps - warmupSteps)
+        lrate.toDouble * (0.1 + 0.45 * (1.0 + math.cos(math.Pi * progress)))
+      }
+    }
+
+    println(s"Training on $totalSamples samples in $totalBatches batches for $epocs epochs.")
+    val progressEvery = math.max(1, totalBatches / 20)
     for (epoch <- 1 to epocs) {
 
       var totalLoss = 0.0
+      var recentLoss = 0.0
+      var recentSamples = 0
       println(s"Epoch $epoch/$epocs started.")
+      val shuffled = Random.shuffle(dataset)
+      for ((batch, batchIndex) <- shuffled.iterator.grouped(batchSize).zipWithIndex) {
 
-      for ((sentence, sampleIndex) <- dataset.iterator.zipWithIndex) {
-
+        val step = (epoch - 1).toLong * totalBatches + batchIndex + 1
+        val currentRate = learningRateAt(step)
+        torch.OptimizerLearningRate.set(optimizer, currentRate)
         optimizer.zeroGrad()
-
-        val logits = attentionModel.apply(sentence)
-
-        val targetTensor =
-          torch.Tensor(Seq(attentionModel.target(sentence)))
-            .to(dtype = torch.int64, device=device)
-
-        val loss =
-          functional.crossEntropy(
-            logits.unsqueeze(0),
-            targetTensor
-          )
-
-        loss.backward()
-        torch.nn.utils.clipGradNorm_(attentionModel.parameters, 1.0)
+        val (batchLoss, gradNorm) = Using.resource(new PointerScope()) { _ =>
+          val logits = attentionModel.applyBatch(batch.toSeq)
+          val targetTensor =
+            torch.Tensor(batch.map(attentionModel.target).toSeq)
+              .to(dtype = torch.int64, device=device)
+          val loss = functional.crossEntropy(logits, targetTensor)
+          val lossValue = loss.item.toDouble
+          if (!lossValue.isFinite) {
+            throw new IllegalStateException(s"Non-finite training loss at epoch $epoch, batch ${batchIndex + 1}")
+          }
+          loss.backward()
+          val gradNorm = torch.nn.utils.clipGradNorm_(attentionModel.parameters, 1.0)
+          if (!gradNorm.isFinite) {
+            throw new IllegalStateException(s"Non-finite gradient norm at epoch $epoch, batch ${batchIndex + 1}")
+          }
+          (lossValue, gradNorm)
+        }
         optimizer.step()
 
-        totalLoss += loss.item.toDouble
-        val processed = sampleIndex + 1
-        if (processed % progressEvery == 0 || processed == totalSamples) {
-          println(f"Epoch $epoch%d/$epocs%d: $processed%d/$totalSamples%d samples, avg loss ${totalLoss / processed}%.4f")
+        totalLoss += batchLoss * batch.size
+        recentLoss += batchLoss * batch.size
+        recentSamples += batch.size
+        val processed = batchIndex * batchSize + batch.size
+        if ((batchIndex + 1) % progressEvery == 0 || processed == totalSamples) {
+          println(f"Epoch $epoch%d/$epocs%d: $processed%d/$totalSamples%d samples, " +
+            f"recent loss ${recentLoss / recentSamples}%.4f, epoch loss ${totalLoss / processed}%.4f, " +
+            f"grad norm $gradNorm%.3f, lr $currentRate%.6g")
+          recentLoss = 0.0
+          recentSamples = 0
         }
       }
       println(s"Saved neural model to ${saveModel()}")
@@ -105,8 +140,10 @@ object BaseTrainer {
   def main(args: Array[String]): Unit = {
     require(args.length <= 2, "Usage: BaseTrainer [train|load] [checkpoint.bin]")
     val mode = args.headOption.getOrElse("train")
-    val filename = args.lift(1).getOrElse("resources/models/attention-model.bin")
-    val trainer = new BaseTrainer(10, 0.001f, filename)
+    val max = 7000000
+    val start = 5000000
+    val filename = args.lift(1).getOrElse("resources/models/attention-model-causal-stable.bin")
+    val trainer = new BaseTrainer(6, 0.01f, filename, batchSize = 512, maxLines = max)
     mode match {
       case "train" => trainer.train()
       case "load" =>
