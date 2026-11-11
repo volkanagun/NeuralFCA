@@ -140,8 +140,8 @@ object BaseTrainer {
   def main(args: Array[String]): Unit = {
     require(args.length <= 2, "Usage: BaseTrainer [train|load] [checkpoint.bin]")
     val mode = args.headOption.getOrElse("train")
-    val max = 7000000
-    val start = 5000000
+    val max = 10000000
+    val start = 0
     val filename = args.lift(1).getOrElse("resources/models/attention-model-causal-stable.bin")
     val trainer = new BaseTrainer(6, 0.01f, filename, batchSize = 512, maxLines = max)
     mode match {
