@@ -93,21 +93,22 @@ class Evaluate(val nodes: Seq[Node], val embeddingMap: Map[String, torch.Tensor[
     samples.iterator.filter(similarity.concept_exists).zipWithIndex.foreach { case ((x, y, s, d), index) => {
       val sims = if useCosAdd then similarity.cosAdd(x, y, s, evalScore.topK)
       else similarity.conceptAdd(x, y, s, evalScore.topK)
+
+      if sims.contains(d) then evalScore.trueCount += 1
+      evalScore.totalCount += 1
       val completed = index + 1
       val now = System.nanoTime()
 
       if completed == eligibleCount || now - lastProgressAt >= 1000000000L then
         val percent = completed * 100.0 / eligibleCount
         val elapsed = (now - startedAt) / 1e9
-        println(f"[Evaluate] $label: $completed/$eligibleCount ($percent%.1f%%), elapsed=$elapsed%.1fs")
+        println(f"[Evaluate] $label: $completed/$eligibleCount ($percent%.1f%%), " +
+          f"tp=${evalScore.trueCount}%.0f, elapsed=$elapsed%.1fs")
         lastProgressAt = now
-
-      if sims.contains(d) then evalScore.trueCount += 1
-      evalScore.totalCount += 1
     }}
 
-    if eligibleCount == 0 then
-      println(s"[Evaluate] $label: complete, 0 comparisons eligible")
+    val eligibility = if eligibleCount == 0 then " (0 comparisons eligible)" else ""
+    println(s"[Evaluate] $label: complete, tp=${evalScore.trueCount.toLong}/${evalScore.totalCount.toLong}$eligibility")
     evalScore
   }
 
@@ -178,13 +179,13 @@ class Evaluate(val nodes: Seq[Node], val embeddingMap: Map[String, torch.Tensor[
 
     val evalMap = Map(
      // "cosAddAmbigous_1" -> EvalScore("cosAddAmbigous", topK = 1),
-      "cosAddAmbigous_5" -> EvalScore("cosAddAmbigous", topK = 5),
+     "cosAddAmbigous_5" -> EvalScore("cosAddAmbigous", topK = 5)//,
       /* "cosAddAmbigous_20" -> EvalScore("cosAddAmbigous", topK = 20),
       "cosAddNonAmbigous_1" -> EvalScore("cosAddNonAmbigous", topK = 1),
       "cosAddNonAmbigous_5" -> EvalScore("cosAddNonAmbigous", topK = 5),
       "cosAddNonAmbigous_20" -> EvalScore("cosAddNonAmbigous", topK = 20),
       "conceptAddAmbigous_1" -> EvalScore("conceptAddAmbigous", topK = 1),*/
-      "conceptAddAmbigous_5" -> EvalScore("conceptAddAmbigous", topK = 5)
+      //"conceptAddAmbigous_5" -> EvalScore("conceptAddAmbigous", topK = 5)
       /*,
       "conceptAddAmbigous_20" -> EvalScore("conceptAddAmbigous", topK = 20),
       "conceptAddNonAmbigous_1" -> EvalScore("conceptAddNonAmbigous", topK = 1),
@@ -300,9 +301,9 @@ object Evaluate {
     println("[Evaluate] Loading lattice...")
     val windows = 3
     //val lattice = new Lattice(dim).load(s"resources/binary/fca-cva-${windows}.bin")
-    val lattice = new Lattice(dim).load(s"resources/binary/simple-lattice.bin")
+    lazy val lattice = new Lattice(dim).load("resources/binary/simple-glove-paired-lattice.bin")
     println("[Evaluate] Loading embeddings...")
-    val map = new CVADataset().readEmbeddingMap("resources/embeddings/vectors.txt", Device.CPU)
+    val map = new CVADataset().readEmbeddingMap("resources/embeddings/vectors-glove-paired.txt", Device.CPU)
     println(s"[Evaluate] Loaded ${map.size} embeddings; preparing common-vector concept similarity...")
     val evaluator = new Evaluate(nodes = lattice.getNodes, embeddingMap = map, conceptCandidate = 50)
     evaluator.evaluate()

@@ -95,9 +95,10 @@ class ConceptSimilarity(val dictionary: Set[String],
     if topK <= 0 then return Array.empty[String]
     Using.resource(new PointerScope()) { _ =>
       val difference = embeddingMap(destination) - embeddingMap(source) + embeddingMap(item)
-      val scores = embeddingMap.iterator
+      val scores = embeddingMap.toArray.par
         .filter { case (token, _) => token != source && token != destination && token != item }
         .map { case (token, vector) => token -> cosineSimilarity(vector, difference) }
+        .toArray.iterator
       topCandidates(scores, topK, alphabeticalTies = false)
     }
   }

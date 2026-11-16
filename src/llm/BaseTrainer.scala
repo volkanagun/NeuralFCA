@@ -86,7 +86,7 @@ class BaseTrainer(val epocs:Int, val lrate:Float,
     }
 
     println(s"Training on $totalSamples samples in $totalBatches batches for $epocs epochs.")
-    val progressEvery = math.max(1, totalBatches / 20)
+    val progressEvery = math.max(1, totalBatches / 2000)
     for (epoch <- 1 to epocs) {
 
       var totalLoss = 0.0
@@ -141,7 +141,7 @@ object BaseTrainer {
     require(args.length <= 2, "Usage: BaseTrainer [train|load] [checkpoint.bin]")
     val mode = args.headOption.getOrElse("train")
     val max = 10000000
-    val start = 0
+    val start = 8000000
     val filename = args.lift(1).getOrElse("resources/models/attention-model-causal-stable.bin")
     val trainer = new BaseTrainer(6, 0.01f, filename, batchSize = 512, maxLines = max)
     mode match {

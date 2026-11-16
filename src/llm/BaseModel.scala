@@ -10,10 +10,9 @@ import zemberek.tokenization.{Token, TurkishTokenizer}
 import java.util.Locale
 import scala.jdk.CollectionConverters.*
 
-trait BaseModel(val latticeFilename: String, val embeddingFilename: String) {
+trait BaseModel(val latticeFilename: String, val embeddingFilename: String,
+                val dim: Int = 300, val candidateExtends: Int = 30) {
   //load lattice concept dictionary
-  val dim = 300
-  val candidateExtends = 30
   val lattice = new Lattice(dim).load(latticeFilename)
   val candidateNodes = lattice.getNodes.filter(node => node.size <= candidateExtends).toVector
   val conceptSize = candidateNodes.size
