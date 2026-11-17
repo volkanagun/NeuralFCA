@@ -18,10 +18,10 @@ final class ConceptGloveTrainer(
     val outputEmbeddingFilename: String = "resources/embeddings/vectors-glove-paired.txt",
     val device: Device = Device.CUDA,
     val epochs: Int = 5,
-    val learningRate: Double = 0.01,
-    val batchSize: Int = 5000,
+    val learningRate: Double = 0.02,
+    val batchSize: Int = 4096,
     val skipSamples: Int = 0,
-    val maxSamples: Int = 20000000,
+    val maxSamples: Int =50000000,
     val dimension: Int = 300,
     val candidateExtents: Int = 30,
     val contextRadius: Int = 5,
@@ -30,7 +30,7 @@ final class ConceptGloveTrainer(
     val maxPositiveConcepts: Int = 4,
     val countWorkers: Int = math.max(1, math.min(8, Runtime.getRuntime.availableProcessors())),
     val targetWordsOverride: Option[Set[String]] = None,
-    val contextConditioned: Boolean = true
+    val contextConditioned: Boolean = false
 ) {
   require(epochs > 0 && learningRate > 0 && batchSize > 0 && maxSamples > 0)
   require(xMax > 0 && alpha > 0 && maxPositiveConcepts >= 2 && countWorkers > 0)
