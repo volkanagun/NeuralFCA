@@ -1,6 +1,7 @@
 package simple
 
 import java.nio.file.{Files, Paths}
+import scala.collection.parallel.CollectionConverters.ArrayIsParallelizable
 
 class Main {
 
@@ -10,14 +11,14 @@ class Main {
              start: Int = 0,
              limit: Int = Int.MaxValue,
              dim: Int = 300,
-             beamWidth: Int = 64,
+             beamWidth: Int = 24,
              maxVisits: Int = 1024,
              checkpointFilename: String = "resources/binary/simple-lattice.bin",
-             maxParents: Int = 6
+             maxParents: Int = 24
            ): Lattice = {
     org.bytedeco.pytorch.global.torch.set_num_threads(1)
-    val dataset = new cvafca.CVADataset(size = 24, start = start, limit = limit)
-    val lattice = new Lattice(dim = dim, 0.2, 0.80)
+    val dataset = new cvafca.CVADataset(size = 240, start = start, limit = limit)
+    val lattice = new Lattice(dim = dim, 0.2, 0.77)
     if Files.exists(Paths.get(checkpointFilename)) then
       lattice.load(checkpointFilename)
     val startedAt = System.nanoTime()
@@ -25,7 +26,7 @@ class Main {
 
     dataset.read(embeddingFilename, torch.Device.CPU).foreach { batch =>
 
-      batch.foreach { embedding =>
+      batch.par.foreach { embedding =>
         val instance = new Instance(embedding.symbol, embedding.vector)
         lattice.beamInsert(instance, beamWidth, maxVisits, maxParents)
         //lattice.addInstanceWithFastAddIntent(instance)
@@ -37,7 +38,7 @@ class Main {
       val minutes = (elapsedSeconds % 3600) / 60
       val seconds = elapsedSeconds % 60
       println(f"Processed: $processed%,d | Time: $hours%02d:$minutes%02d:$seconds%02d | Nodes: ${lattice.nodeSize}")
-      lattice.printConcepts()
+
     }
 
 

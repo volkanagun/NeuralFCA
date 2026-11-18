@@ -6,6 +6,7 @@ import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, Data
 import java.nio.file.{AtomicMoveNotSupportedException, Files, Paths, StandardCopyOption}
 import java.util.stream.IntStream
 import scala.collection.mutable
+import scala.collection.parallel.CollectionConverters.seqIsParallelizable
 import scala.util.{Random, Using}
 
 class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6) {
@@ -44,7 +45,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   // CREATE NODE
   // ==================================================
 
-  private def createNode(instance: Instance): Node = {
+  private def createNode(instance: Instance): Node =  {
     beamConceptsByInstance.get(instance.symbol) match {
       case Some(existing) => existing
       case None => {
@@ -54,7 +55,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
     }
   }
 
-  private def addNode(extentIds: Set[String], node: Node):Node ={
+  private def addNode(extentIds: Set[String], node: Node):Node = this.synchronized {
     nextNodeId += 1
     nodes += node
     //intentIndex(node.intent.commonVector) = node
@@ -98,7 +99,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   private def setLink(
                        upper: Node,
                        lower: Node
-                     ): Unit = {
+                     ): Unit = this.synchronized {
     if upper ne lower then {
       upper.children += lower
       lower.parents += upper
@@ -371,7 +372,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
       instance: Instance,
       beamWidth: Int,
       maxVisits: Int
-  ): Vector[(Node, Double)] = {
+  ): Vector[(Node, Double)] = this.synchronized {
     val visited = mutable.HashSet.empty[Int]
     val scored = mutable.ArrayBuffer.empty[(Node, Double)]
     val seedLimit = math.min(maxVisits.toLong, beamWidth.toLong * 4L).toInt
@@ -403,8 +404,9 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   private def beamParents(
       candidates: Vector[(Node, Double)],
       maxParents: Int
-  ): Vector[Node] = {
-    val ranked = candidates.filter(_._2 <= threshold.toDouble)
+  ): Vector[Node] = this.synchronized {
+    val ranked = candidates.par.filter(_._2 <= threshold.toDouble)
+      .toArray
       .sortBy { case (node, distance) => (distance, node.id) }
     val selected = mutable.ArrayBuffer.empty[(Node, Set[String])]
     val iterator = ranked.iterator
@@ -448,6 +450,7 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
       setLink(commonConcept, objectConcept)
     }
     setLink(objectConcept, bottomNode)
+
 
     instances(instance.symbol) = instance
     beamConceptsByInstance(instance.symbol) = objectConcept
@@ -541,6 +544,10 @@ class Lattice(val dim:Int = 300,  val ratio:Float=0.7, val threshold:Float = 0.6
   /** Save the exact graph and fitted CVA models so beam insertion can resume. */
   def save(filename: String): Lattice = this.synchronized {
     require(!projectionsOmitted, "Cannot save a lattice loaded without CVA projections")
+    val reachableInstanceCount = instances.valuesIterator.size
+    require(reachableInstanceCount == instances.size,
+      s"Instance index is internally inconsistent: size=${instances.size}, " +
+        s"iterable=$reachableInstanceCount. Concurrent lattice mutation may have corrupted it.")
     val target = Paths.get(filename).toAbsolutePath
     Files.createDirectories(target.getParent)
     val temporary = Files.createTempFile(target.getParent, ".simple-lattice-", ".tmp")

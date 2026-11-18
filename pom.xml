@@ -46,13 +46,13 @@
             <version>1.2.0</version>
         </dependency>
 
-        <dependency>
+<!--        <dependency>
             <groupId>dev.storch</groupId>
             <artifactId>core_3</artifactId>
             <version>0.0-2dfa388-SNAPSHOT</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/resources/lib/core-assembly-0.0-SNAPSHOT.jar</systemPath>
-        </dependency>
+        </dependency>-->
 
         <dependency>
             <groupId>zemberek-nlp</groupId>
